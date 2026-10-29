@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    NOTE: All sensor accessories have been commented out for real robot visualization.
+    This simplified version includes only basic robot structure without sensor dependencies.
+  -->
+
+  <!-- Macros to generate standoffs for offset payload mounting. -->
+  <xacro:include filename="$(find jackal_description)/urdf/accessories/standoffs.urdf.xacro" />
+
+  <!-- This optional plate mounts both the upgraded GPS and the Velodyne 3D LIDAR. -->
+  <xacro:include filename="$(find jackal_description)/urdf/accessories/bridge_plate.urdf.xacro" />
+
+  <!-- ALL SENSOR INCLUDES COMMENTED OUT FOR REAL ROBOT VISUALIZATION -->
+
+  <!-- Bumper Accessories -->
+  <xacro:if value="$(optenv JACKAL_WIBOTIC_BUMPER 0)">
+    <link name="wibotic_bumper">
+      <visual>
+        <geometry>
+          <mesh filename="package://jackal_description/meshes/wibotic_bumper.stl" />
+        </geometry>
+        <material name="dark_grey" />
+      </visual>
+      <collision>
+        <geometry>
+          <box size="0.115 0.25 0.145"/>
+        </geometry>
+        <origin xyz="-0.017575 0 0.0575" rpy="0 0 0"/>
+      </collision>
+    </link>
+    <joint name="wibotic_bumper_joint" type="fixed">
+      <origin xyz="0.285 0 0.07455" rpy="0 0 0"/>
+      <parent link="base_link"/>
+      <child link="wibotic_bumper"/>
+    </joint>
+  </xacro:if>
+
+  <xacro:if value="$(optenv JACKAL_ARK_ENCLOSURE 0)">
+    <link name="ark_enclosure_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://jackal_description/meshes/ark_enclosure.stl"/>
+        </geometry>
+        <material name="dark_grey" />
+      </visual>
+    </link>
+    <joint name="ark_enclosure_joint" type="fixed">
+      <parent link="mid_mount" />
+      <child link="ark_enclosure_link" />
+    </joint>
+    <gazebo reference="ark_enclosure_link">
+      <material>Gazebo/DarkGrey</material>
+      <turnGravityOff>false</turnGravityOff>
+    </gazebo>
+  </xacro:if>
+
+</robot>

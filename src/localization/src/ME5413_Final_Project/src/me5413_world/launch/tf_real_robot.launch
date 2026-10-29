@@ -1,0 +1,46 @@
+<launch>
+  <!-- =========================================== -->
+  <!--            实车TF变换（手动发布）             -->
+  <!-- =========================================== -->
+  
+  <!-- 方法1：使用robot_state_publisher（如果使用URDF） -->
+  <!-- 
+  <param name="robot_description" 
+         command="cat $(find me5413_world)/urdf/real_robot.urdf"/>
+  <node name="robot_state_publisher" pkg="robot_state_publisher" 
+        type="robot_state_publisher"/>
+  -->
+  
+  <!-- 方法2：直接发布静态TF（更简单） -->
+  
+  <!-- ⚠️ 注意：map->odom 由AMCL动态发布，不能用static_transform_publisher！ -->
+  <!-- ⚠️ 注意：odom->base_link 由实车GPS/IMU驱动发布，不要重复发布！ -->
+  
+  <!-- 1. 地图坐标系（导航核心） -->
+  <!-- ❌ 错误配置（已禁用）：map->odom应由AMCL发布 -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_to_odom"
+        args="-1.70 -15.80 0 0 0 0 map odom 100"/> -->
+  
+  <!-- 2. 里程计坐标系（如果实车不发布odom->base_link） -->
+  <!-- ❌ 错误配置（已禁用）：odom->base_link已由/bynav/oem7/driver发布 -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="odom_to_base"
+        args="0 0 0 0 0 0 odom base_link 100"/> -->
+  
+  <!-- 3. 3D激光雷达坐标系（关键！根据实际测量调整） -->
+  <!-- 示例：雷达在机器人前方0.2m，中心线上，高度0.3m -->
+  <node pkg="tf" type="static_transform_publisher" name="base_to_velodyne"
+        args="0.2 0.0 0.3 0 0 0 base_link velodyne 100"/>
+  
+  <!-- 4. 2D激光雷达（如果有的话） -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="base_to_laser"
+        args="0.1 0.0 0.2 0 0 0 base_link laser 100"/> -->
+  
+  <!-- 5. IMU（如果有的话） -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="base_to_imu"
+        args="0.0 0.0 0.1 0 0 0 base_link imu_link 100"/> -->
+  
+  <!-- 6. 相机（如果有的话） -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="base_to_camera"
+        args="0.15 0.0 0.25 0 0 0 base_link camera_link 100"/> -->
+  
+</launch>

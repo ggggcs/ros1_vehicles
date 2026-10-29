@@ -1,0 +1,23 @@
+# ft_c2vf_params.yaml
+max_speed: 5
+min_speed: 0.0
+max_omega: 1.5
+wheelbase: 0.66
+
+# 曲率设置 (手动开启则取消下方注释)
+kappa_max: 0.77
+#max_steering_angle_deg: 30.0 
+
+gamma: 0.5
+alpha: 0.667
+beta: 0.28
+k_v: 1.2
+mu: 15
+stop_tolerance: 0.05
+yaw_tolerance_deg: 1.0
+soft_start_k: 0.65
+eps: 0.05
+num_loops: 4
+
+
+

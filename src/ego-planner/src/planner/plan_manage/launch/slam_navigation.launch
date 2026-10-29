@@ -1,0 +1,82 @@
+<launch>
+  <!-- ===== SLAM Navigation: LIO-SAM + Patchwork++ + ego-planner ===== -->
+  <!-- Prerequisites: ackermann_vehicle_base.launch running -->
+  <!--              (provides /velodyne_points, /imu/data, /ackermann_cmd, vehicle tf) -->
+
+  <!-- use_sim_time: must match Gazebo simulation time -->
+  <param name="/use_sim_time" value="true"/>
+
+  <arg name="map_size_x" default="100.0"/>
+  <arg name="map_size_y" default="100.0"/>
+  <arg name="obstacle_min_height" default="0.05"/>   <!-- z-clip ground filter: 0.05=just ground, don't set too high -->
+
+  <!-- ===== LIO-SAM: SLAM localization ===== -->
+  <rosparam file="$(find lio_sam)/config/params.yaml" command="load" />
+  <param name="lio_sam/imuTopic" value="/imu/data" type="str"/>
+  <param name="lio_sam/baselinkFrame" value="base_link" type="str"/>
+
+  <remap from="/points_raw" to="/velodyne_points"/>
+
+  <node pkg="lio_sam" type="lio_sam_imageProjection"     name="lio_sam_imageProjection"     output="screen"/>
+  <node pkg="lio_sam" type="lio_sam_featureExtraction"   name="lio_sam_featureExtraction"   output="screen"/>
+  <node pkg="lio_sam" type="lio_sam_mapOptmization"      name="lio_sam_mapOptmization"      output="screen"/>
+  <node pkg="lio_sam" type="lio_sam_imuPreintegration"   name="lio_sam_imuPreintegration"   output="screen"/>
+
+  <!-- ===== Patchwork++: Ground Segmentation ===== -->
+  <node name="patchworkpp" pkg="patchworkpp" type="patchworkpp_node" output="screen">
+    <rosparam command="load" file="$(find patchworkpp)/config/params.yaml"/>
+    <param name="cloud_topic" value="/velodyne_points"/>
+  </node>
+
+  <!-- Bridge LIO-SAM odometry to /legOdom (ego_planner uses this) -->
+  <node pkg="topic_tools" type="relay" name="odom_relay"
+        args="/lio_sam/mapping/odometry /legOdom" output="screen"/>
+
+  <!-- Global frame param: all nodes (grid_map, traj_server, planning_vis) read this -->
+  <param name="grid_map/frame_id" value="odom" type="str"/>
+  <param name="/ego_planner_node/grid_map/frame_id" value="odom" type="str"/>
+  <!-- 3D occupancy map uses segmented (non-ground) cloud to avoid ground-as-obstacle -->
+  <param name="grid_map/cloud_topic" value="/patchworkpp/nonground" type="str"/>
+  <!-- Z-clip: ignore points below this world-frame height (m). Set to ~0.15-0.2 to filter residual ground.
+       0.0 = keep all (default for aerial), >0 = filter below threshold. -->
+  <param name="grid_map/obstacle_min_height" value="$(arg obstacle_min_height)" type="double"/>
+  <param name="/ego_planner_node/grid_map/obstacle_min_height" value="$(arg obstacle_min_height)" type="double"/>
+
+  <!-- ===== ego-planner (SLAM mode) ===== -->
+  <include file="$(find ego_planner)/launch/advanced_param_ground.xml">
+    <arg name="map_frame" value="odom"/>
+    <arg name="map_size_x_" value="$(arg map_size_x)"/>
+    <arg name="map_size_y_" value="$(arg map_size_y)"/>
+    <arg name="odometry_topic" value="/lio_sam/mapping/odometry"/>
+    <arg name="cloud_topic" value="/patchworkpp/nonground"/>
+    <arg name="segmented_cloud_topic" value="/patchworkpp/nonground"/>
+    <arg name="localization_mode" value="0"/>
+  </include>
+
+  <!-- ===== TEB 闭环跟踪 (替代原 traj_server 的开环时间推进) =====
+       最近点投影 -> TEB 局部优化 -> /cmd_vel, 参考 tmp/AgiBot-D1-EgoPlanner2D-TEB -->
+  <node pkg="ego_planner" name="teb_tracking" type="teb_tracking" output="screen">
+    <rosparam command="load" file="$(find ego_planner)/launch/teb_tracking_params.yaml"/>
+    <remap from="/legOdom" to="/lio_sam/mapping/odometry"/>
+  </node>
+
+  <!-- 原开环版本 (备用): 纯时间推进, 无位置误差反馈
+  <node pkg="ego_planner" name="traj_server" type="traj_server" output="screen">
+    <remap from="/position_cmd" to="planning/pos_cmd"/>
+    <remap from="/odom_world" to="/lio_sam/mapping/odometry"/>
+    <remap from="/legOdom" to="/lio_sam/mapping/odometry"/>
+    <param name="traj_server/time_forward" value="1.0" type="double"/>
+  </node>
+  -->
+
+  <!-- ===== Waypoint Generator ===== -->
+  <node pkg="waypoint_generator" name="waypoint_generator" type="waypoint_generator" output="screen">
+    <remap from="~odom" to="/lio_sam/mapping/odometry"/>
+    <remap from="~goal" to="/move_base_simple/goal"/>
+    <remap from="~traj_start_trigger" to="/traj_start_trigger"/>
+    <param name="waypoint_type" value="manual-lonely-waypoint"/>
+  </node>
+
+  <!-- ===== RViz ===== -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find ego_planner)/launch/slam_rviz.rviz"/>
+</launch>

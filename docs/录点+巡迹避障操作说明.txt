@@ -1,0 +1,81 @@
+湖南大学无人系统组智能网联无人车实验平台
+功能：录点、巡迹避障
+版本：1.1
+维护人员：陈林 胡善元 简雷 孟晋阳
+最近一次维护时间：2024.11.29
+友情提示：必须按如下步骤操作！
+
+1.启动can:
+进入 
+~/workspace/ros1_vehicles
+先source 
+source devel/setup.bash
+执行
+sudo bash scripts/start_can.sh
+
+2.启动底盘驱动：
+进入 
+~/workspace/MK-mid-ros1
+先source
+执行
+roslaunch yhs_can_control yhs_can_control.launch
+
+3.启动RTK
+新开终端，进入
+~/Downloads/libhv-master
+执行
+./bin/nc 192.168.8.151 1111 |grep INS
+此时状态显示ALIGNMENT_COMPLETE
+手柄控制无人车按“8”字轨迹行驶1次（或多次），直到状态显示变成SOLUTION_GOOD,完成校准
+
+4.启动差分定位驱动节点
+新开终端，进入
+~/workspace/ros1_vehicles
+先source
+执行
+rosrun com_location_driver com_location_driver_node
+显示onconnect,启动成功
+
+5.启动激光雷达
+新开终端，进入
+~/workspace/test
+先source
+执行
+roslaunch rslidar_sdk start.launch
+
+6.启动激光点云滤波节点
+新开终端，进入
+~/workspace/ros1_vehicles
+先source
+执行
+rosrun rs_radar2ob_dis radar2dis.py
+
+7.启动录点巡迹节点
+新开终端，进入
+~/workspace/test
+先source
+执行
+rosrun my_package 3d_1.py
+按提示键入数字选择功能
+
+8.录点模式
+完成步骤1-7（步骤5、6非必须）
+选择 模式1:录点模式
+将白色遥控器切换为程控模式
+打开黑色手柄控制节点：
+进入
+~/workspace/test
+先source
+执行
+rosrun my_package ctrl_cmd_publisher_handle.py
+即可开始用黑色手柄遥控，按下“A”键录点，键入ctrl+c结束并保存路径
+路径存储位置：
+~/workspace/test/src/my_package/ludian_log
+
+9.跟随模式
+完成步骤1-7
+选择 模式2:跟随模式
+选择 要跟随的路径
+关闭黑色手柄控制节点
+将白色遥控器切换为程控模式
+

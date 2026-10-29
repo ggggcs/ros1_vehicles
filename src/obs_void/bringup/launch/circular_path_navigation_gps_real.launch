@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- ==================== 参数配置 ==================== -->
+    <arg name="use_sim_time" default="false"/>
+    <param name="use_sim_time" value="$(arg use_sim_time)"/>
+    
+    <!-- ==================== 1. 启动组合导航驱动 ==================== -->
+    <include file="$(find bynav_ros_driver)/launch/connect_net.launch" />
+    
+    <!-- ==================== 2. 运行9轴imu融合功能包 ==================== -->
+    <include file="$(find imu_data_fusion)/launch/imu_fusion.launch" />
+    
+    <!-- ==================== 3. 启动激光雷达驱动 ==================== -->
+    <include file="$(find hesai_ros_driver)/launch/start.launch" />
+    
+    <!-- ==================== 4. 运行点云格式转换功能包 ==================== -->
+    <include file="$(find hesai_to_velodyne)/launch/hesai_to_velodyne.launch" />
+
+    <!-- ==================== 5. GPS定位系统（相对坐标转换） ==================== -->
+    <!-- GPS驱动输出绝对ENU坐标到 /AIMhc_UGV1/odom -->
+    <!-- odom_relative_node将绝对坐标转换为相对坐标，并发布TF -->
+    <!-- 数据流: 
+         GPS驱动 -> /AIMhc_UGV1/odom (绝对ENU坐标: 683481.xx, 3122987.xx)
+                          ↓ 订阅
+                  odom_relative_node
+                          ↓ 转换 (减去起始点)
+         发布 -> /odom (相对坐标: 0.xx, 0.xx) + TF(odom->base_link)
+    -->
+    <node name="odom_relative_node" pkg="gps_to_enu" type="odom_relative_node.py" output="screen"/>
+
+    <!-- ==================== 6. 设置坐标系变换 (GPS模式 - 简化版) ==================== -->
+    <!-- 简化后的TF链: odom -> base_link -> velodyne -->
+    <!-- 移除了不必要的car_baselink，直接使用ROS标准base_link -->
+    
+    <!-- base_link到velodyne的静态变换 -->
+    <!-- 参数: x y z yaw pitch roll parent_frame child_frame period(ms) -->
+    <!-- 当前假设：velodyne在车体中心上方0.5米，旋转180度(3.14) -->
+    <!-- period=100表示10Hz发布频率，与GPS更新频率匹配 -->
+    <node pkg="tf" type="static_transform_publisher" name="base_link_to_velodyne" 
+          args="0.3 0.0 0.5 1.57 0 0 base_link velodyne 100" />
+    
+    <!-- ==================== 7. 启动障碍物检测与拟合 ==================== -->
+    <include file="$(find obs_fitting)/launch/obs_fitting.launch" />
+    
+    <!-- ==================== 8. 圆形路径发布器 (替代全局规划器) ==================== -->
+    <node name="circular_path_publisher" pkg="bringup" type="circular_path_publisher.py" output="screen">
+        <rosparam file="$(find bringup)/param/circular_path_params.yaml" command="load"/>
+    </node>
+    
+    <!-- ==================== 9. 启动向量场局部规划器 (C++版本) ==================== -->
+    <node name="vector_field_planner_cpp" pkg="bringup" type="vector_field_planner_cpp" output="screen">
+        <rosparam file="$(find bringup)/param/vector_field_planner_params.yaml" command="load"/>
+    </node>
+    
+    <!-- ==================== 10. 车辆控制接口节点，用的时候再开 ！！！==================== -->
+    <node name="nav_sim" pkg="racecar_description" type="nav_sim.py" output="screen" respawn="false"/>
+    
+    <!-- ==================== 11. 可选：启动RViz用于调试 ==================== -->
+    <node name="rviz" pkg="rviz" type="rviz" 
+          args="-d $(find bringup)/rviz/lio_sam_navigation.rviz" 
+          required="false" respawn="false"/>
+
+</launch>

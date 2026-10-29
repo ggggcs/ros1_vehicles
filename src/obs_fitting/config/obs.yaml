@@ -1,0 +1,47 @@
+# Efficient Area parameters
+efficient_area:
+  front: -6.0
+  back: 0.8
+  left: 2.5
+  right: -2.5
+  up: 0.2
+  down: -0.8 #-1.01286
+
+# Car Area parameters
+car_area:
+  front: -0.67
+  back: 1.1
+  left: 0.5
+  right: -0.5
+  up: 0.2
+  down: -1.01286
+
+# Filter Threshold parameters
+filter_threshold:
+  first: 0.02
+  second_xy: 0.05
+  second_z: 2.0
+
+# FEC parameters
+fec:
+  min_component_size: 30
+  max_component_size: 100
+  tolerance: 0.5
+
+# TTL-based obstacle memory system parameters
+ttl_memory:
+  max_ttl_time: 3         # Maximum time to keep obstacles in memory (seconds)
+  match_distance_thresh: 0.6 # Distance threshold for matching obstacles (meters)
+
+# OpenMP threads (optional, can be set via environment)
+omp_num_threads: 8
+
+# Vehicle parameters (for visualization and planning)
+vehicle:
+  wheelbase: 0.66                # 轴距 (米)
+  max_steering_angle: 0.7        # 最大转向角 (弧度) ≈ 40.1度
+  car_width: 0.8                 # 车宽 (米)
+  car_length: 1.3                # 车长 (米)
+  # min_turning_radius将自动计算为: wheelbase / tan(max_steering_angle)
+  # 或者可以手动设置来覆盖自动计算的值
+  min_turning_radius: 1.7    # 最小转弯半径 (米)

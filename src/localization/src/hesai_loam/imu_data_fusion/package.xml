@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>imu_data_fusion</name>
+  <version>1.0.0</version>
+  <description>
+    IMU and LiDAR data fusion package for ROS1.
+    Fuses IMU raw data with Novatel INSPVAX orientation data.
+  </description>
+
+  <maintainer email="xuzhenyang725@todo.todo">Xuzhenyang725</maintainer>
+  <license>MIT</license>
+
+  <author email="xuzhenyang725@todo.todo">Xuzhenyang725</author>
+
+  <!-- 构建工具依赖 -->
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- 构建和运行时依赖 -->
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>message_filters</depend>
+  <depend>novatel_oem7_msgs</depend>
+
+  <!-- 导出信息 -->
+  <export>
+  </export>
+</package>

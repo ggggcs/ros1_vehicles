@@ -1,0 +1,61 @@
+<launch>
+  <!-- =========================================== -->
+  <!--        使用RTK定位的导航配置                 -->
+  <!--   舍弃AMCL，直接使用RTK提供的准确位置         -->
+  <!-- =========================================== -->
+
+  <!-- 地图配置 -->
+  <arg name="map_file" default="$(find me5413_world)/maps/map.yaml"/>
+  
+  <!-- ========== 关键参数：地图原点偏移 ========== -->
+  <!-- 这些值需要根据实际情况调整：
+       1. 如果地图原点与RTK原点重合，设为 (0, 0, 0)
+       2. 如果知道地图原点的RTK坐标，设为对应值的负数
+       3. 可以通过实车测试调整这些值
+  -->
+  <arg name="map_origin_x" default="12.037"/>  <!-- 地图原点在RTK坐标系的X坐标 -->
+  <arg name="map_origin_y" default="73.137"/>  <!-- 地图原点在RTK坐标系的Y坐标 -->
+  <arg name="map_origin_yaw" default="-0.75"/> <!-- 地图旋转角度（弧度） -->
+
+  <!-- 0. 机器人描述（URDF模型） -->
+  <include file="$(find me5413_world)/launch/include/real_robot_description.launch"/>
+  
+  <!-- 0.1 实车控制配置（EKF等） -->
+  <include file="$(find me5413_world)/launch/include/real_robot_control.launch"/>
+
+  <!-- 1. 地图服务器 -->
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)">
+    <param name="frame_id" value="map"/>
+  </node>
+
+  <!-- 2. ⚠️ 关键：发布静态 map->odom 变换 -->
+  <!-- 这个变换将RTK坐标系与地图坐标系对齐 -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom"
+        args="$(arg map_origin_x) $(arg map_origin_y) 0 $(arg map_origin_yaw) 0 0 map odom"/>
+  
+  <!-- 说明：
+       - 如果你的RTK odom原点就是地图原点，上面参数都设为0即可
+       - 如果地图原点不在(0,0)，需要调整map_origin_x/y参数
+       - 旋转角度map_origin_yaw通常为0（假设地图北向与RTK北向一致）
+  -->
+
+  <!-- 3. Move Base路径规划（使用RTK定位） -->
+  <include file="$(find me5413_world)/launch/real_move_base_teb.launch"/>
+
+  <!-- 4. RViz可视化 -->
+  <node type="rviz" name="rviz" pkg="rviz" 
+        args="-d $(find me5413_world)/rviz/real_navigation.rviz" 
+        output="log" respawn="true" launch-prefix="bash -c 'sleep 3; $0 $@' "/>
+
+  <!-- 5. 目标发布节点 -->
+  <node ns="me5413_world" pkg="me5413_world" type="goal_publisher_node" 
+        name="goal_publisher_node" output="screen">
+    <param name="position_tolerance" value="0.15" />
+    <param name="angle_tolerance" value="0.15" />
+  </node>
+
+  <!-- 诊断信息 -->
+  <node pkg="rostopic" type="rostopic" name="rtk_info" 
+        args="echo -n 1 /odom" output="screen" launch-prefix="bash -c 'sleep 5; $0 $@' "/>
+
+</launch>

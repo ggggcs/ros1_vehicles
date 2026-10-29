@@ -1,0 +1,119 @@
+<launch>
+  <!-- ============================================================
+       实车导航入口: ego-planner + TEB 跟踪 + patchwork++ + 底盘桥接
+       目标机: 工控机 aarch64 (Jetson), Ubuntu 20.04 + ROS Noetic
+
+       所有可调参数集中在一个文件:
+           config/real_vehicle_params.yaml
+       本 launch 只负责「加载参数 + 起节点」, 不再散落任何数值。
+
+       本 launch **不启动** LIO-SAM 和雷达驱动, 它们按你现有方式单独启动:
+           roslaunch hesai_ros_driver start.launch
+           roslaunch hesai_to_velodyne hesai_to_velodyne.launch
+           roslaunch lio_sam run.launch
+       ============================================================ -->
+
+  <!-- [实车改] 仿真版 slam_navigation.launch 第 7 行是 use_sim_time=true,
+       实车必须 false, 否则所有节点等 /clock 永远不走 -->
+  <param name="/use_sim_time" value="false"/>
+
+  <arg name="use_rviz" default="true"/>
+  <arg name="params" default="$(find ego_planner)/config/real_vehicle_params.yaml"/>
+
+  <!-- ============================================================
+       统一参数: 以全局作用域加载。文件里每个顶层键就是一个节点名,
+       各节点用私有句柄(~)读取, 自动各归各位。
+       所以下面 <node> 的 name 必须与 yaml 里的顶层键一致。
+       ============================================================ -->
+  <rosparam command="load" file="$(arg params)"/>
+
+  <!-- ============================================================
+       1. 里程计朝向修正: 雷达坐标轴 -> 车体坐标轴(x 朝车头)
+       ............................................................
+       LIO-SAM 配的是 lidarFrame = baselinkFrame = base_link 且
+       chassis_link->velodyne 为单位阵, 所以 /lio_sam/mapping/odometry 的姿态
+       是"雷达自身坐标轴朝向"。实测雷达 +x 指向车左, 不修正的话 TEB 认为的
+       车头方向偏 90 度, 会朝侧向猛打方向。
+       输出到 /legOdom —— 这个名字是 grid_map.cpp 和 ego_replan_fsm.cpp 里
+       写死的, 所以下游不需要任何 remap。
+       ============================================================ -->
+  <node pkg="ego_planner" name="odom_rear_axle" type="odom_rear_axle.py" output="screen"/>
+
+  <!-- ============================================================
+       2. 地面分割: GPU ROI 裁剪 + patchwork++
+       ............................................................
+       复用 obs_fitting 里的 patchworkpp.hpp 和 libcudafilter.so, 但不启动
+       obs_fitting 的 CUDA 聚类/椭圆拟合/TTL 跟踪整条管线。
+       节点名必须叫 patchworkpp: 私有话题 /patchworkpp/nonground 正好对上
+       grid_map.cpp:151 里写死的名字。
+       若要改用完整的 obs_fitting: 注释掉本节点, 单独 roslaunch obs_fitting
+       obs_fitting.launch, 并把 yaml 里 teb_tracking.obstacle_topic 与
+       tuning_base.nonground_topic 改成 /obs_fitting/nonground, 同时给
+       ego_planner_node 加 remap(因为 grid_map 里那个名字是写死的)。
+       ============================================================ -->
+  <node pkg="ego_planner" name="patchworkpp" type="patchworkpp_node" output="screen"/>
+
+  <!-- ============================================================
+       3. EGO-Planner 主节点
+       ............................................................
+       注意: 这里**不再** include advanced_param_ground.xml —— 那个 xml 把参数
+       写在 <param> 标签里, 与统一 yaml 会重复且以 xml 为准, 容易踩坑。
+       仿真仍然用那个 xml, 两边互不影响。
+
+       ego_planner_node 内部的写死话题名与 remap 情况:
+           /legOdom                (grid_map.cpp:135,147 + ego_replan_fsm.cpp:50)
+           /patchworkpp/nonground  (grid_map.cpp:151)   无需 remap
+           /grid_map/cloud         (grid_map.cpp:145)   需要 remap
+       (advanced_param_ground.xml 里的 /odom_world、/grid_map/odom、
+        /grid_map/segmented_cloud 三个 remap 其实是失效的, 源码没订阅这些名字。)
+
+       **/legOdom -> /legOdom_world 这个 remap 是必须的, 原因如下**
+       ego_replan_fsm.cpp:199-201 把 twist.linear 整个当成**世界系速度向量**
+       存进 odom_vel_:
+           odom_vel_(0) = msg->twist.twist.linear.x;
+           odom_vel_(1) = msg->twist.twist.linear.y;
+       再作为 B 样条的起始速度边界条件(planner_manager.cpp:93
+       one_segment_traj_gen(start_pt, start_vel, ...) 建的是世界系多项式)。
+       而 /legOdom 上的 twist 是**车体系**的(ROS 标准, teb_tracking 要的就是这个)。
+       两者混用会让 EGO 不管车头朝哪都以为"我正朝世界 +X 运动" ->
+       规划出 S 弯、路径一直在变, 即使前方完全没有障碍。
+       odom_rear_axle 因此额外发一份 twist 旋到世界系的 /legOdom_world。
+
+       这个 remap 是节点级的, grid_map 那两处 /legOdom 也会一起被重定向 ——
+       没问题, grid_map 只取 pose, 两个话题的 pose 完全相同。
+       ============================================================ -->
+  <node pkg="ego_planner" name="ego_planner_node" type="ego_planner_node" output="screen">
+    <remap from="/grid_map/cloud" to="/patchworkpp/nonground"/>
+    <remap from="/legOdom"        to="/legOdom_world"/>
+  </node>
+
+  <!-- ============================================================
+       4. TEB 闭环跟踪: B 样条 -> 最近点投影 -> TEB 优化 -> /cmd_vel
+       ============================================================ -->
+  <node pkg="ego_planner" name="teb_tracking" type="teb_tracking" output="screen"/>
+
+  <!-- ============================================================
+       5. 底盘桥接: /cmd_vel (v, omega) -> /ctrl_cmd (挡位 + 速度 + 转向角)
+       ............................................................
+       不能直接用 racecar_description/nav_sim.py: 它把 angular.z 当转向角,
+       而 teb_tracking 发的是角速度; 且它写死 gear=4 无法倒车
+       (yhs 驱动会把负速度钳成 0, 见 yhs_can_control.cpp:92)。
+       ============================================================ -->
+  <node pkg="ego_planner" name="nav_ackermann" type="nav_ackermann.py" output="screen"/>
+
+  <!-- ============================================================
+       6. Waypoint Generator: 接 RViz 的 2D Nav Goal
+       ============================================================ -->
+  <node pkg="waypoint_generator" name="waypoint_generator" type="waypoint_generator" output="screen">
+    <remap from="~odom"               to="/legOdom"/>
+    <remap from="~goal"               to="/move_base_simple/goal"/>
+    <remap from="~traj_start_trigger" to="/traj_start_trigger"/>
+    <param name="waypoint_type" value="manual-lonely-waypoint"/>
+  </node>
+
+  <!-- ============================================================
+       7. RViz
+       ============================================================ -->
+  <node if="$(arg use_rviz)" name="rviz" pkg="rviz" type="rviz"
+        args="-d $(find ego_planner)/launch/slam_rviz.rviz" required="false"/>
+</launch>

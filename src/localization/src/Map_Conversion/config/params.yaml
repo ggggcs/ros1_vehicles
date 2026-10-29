@@ -1,0 +1,17 @@
+%YAML:1.0
+
+Global_file_directory: "/home/nvidia/workspace/ros1_vehicles/src/localization/src/ME5413_Final_Project/src/me5413_world/maps/GlobalMap.pcd"   #全局地图文件位置
+frame_id: "map"
+local_cloud_frame:  "/scan"     #局部雷达原始帧话题 (/laser_cloud_map)
+
+global_max_z: "0"       #这两个参数是调整栅格地图的Z轴直通滤波的范围
+global_min_z: "35"
+current_max_z: "5"       #这两个参数是调整栅格地图的Z轴直通滤波的范围
+current_min_z: "0"
+
+2d_global_map_resolution: "1"
+2d_current_map_resolution: "0.1"
+
+3d_x_size: 30.0
+3d_y_size: 30.0
+3d_z_size: 10.0

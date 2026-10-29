@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- ==================== 参数配置 ==================== -->
+    <arg name="use_sim_time" default="true"/>
+    <param name="use_sim_time" value="$(arg use_sim_time)"/>
+    
+    <!-- ==================== 1. 启动Gazebo仿真环境和小车 ==================== -->
+    <include file="$(find bringup)/launch/gazebo/racecar.launch">
+        <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    </include>
+    
+    <!-- ==================== 2. 启动LIO-SAM建图与定位 ==================== -->
+    <rosparam file="$(find lio_sam)/config/params.yaml" command="load" />
+    <include file="$(find lio_sam)/launch/include/module_loam.launch" />
+    
+    <!-- ==================== 3. 启动障碍物检测与拟合 ==================== -->
+    <include file="$(find obs_fitting)/launch/obs_fitting.launch" />
+    
+    <!-- ==================== 4. 启动向量场局部规划器 (内置圆形路径) ==================== -->
+    <node name="vector_field_planner" pkg="bringup" type="vector_field_planner.py" output="screen">
+        <rosparam file="$(find bringup)/param/vector_field_planner_params.yaml" command="load"/>
+    </node>
+    
+    <!-- ==================== 5. 导航接口节点 ==================== -->
+    <node name="nav_sim" pkg="racecar_description" type="nav_sim.py" output="screen"/>
+    
+    <!-- ==================== 6. 可视化 ==================== -->
+    <node name="rviz" pkg="rviz" type="rviz" 
+          args="-d $(find bringup)/rviz/lio_sam_navigation.rviz" required="false"/>
+    
+    <!-- ==================== 说明 ==================== -->
+    <!--
+    简化向量场导航架构 (基于隐式函数):
+    
+    1. 路径定义: 圆形路径隐式函数
+       - 数学表达: φ(x,y) = (x-cx)² + (y-cy)² - R²
+       - 梯度: ∇φ = [2(x-cx), 2(y-cy)]
+       - 参数: 在 vector_field_planner_params.yaml 中配置
+    
+    2. 局部规划: 向量场规划器
+       - 路径跟踪: χ_P = direction_sign * E∇φ - k_p·φ·∇φ
+       - 避障: χ_R = E∇φ_i - k_r·φ_i·∇φ_i
+       - 复合: χ_c = (∏U_Q)χ̂_P + ∑(T_R·χ̂_R)
+       - 输入: 
+         * 圆形路径隐式函数 (内置)
+         * 障碍物椭圆 (从obs_fitting)
+         * 当前位置 (从LIO-SAM里程计)
+       - 输出: 速度命令 /cmd_vel
+    
+    3. 控制: nav_sim.py
+       - 将/cmd_vel转换为Ackermann命令
+    
+    优势:
+    - 完全移除全局规划器和路径发布器
+    - 使用数学隐式函数直接计算向量场
+    - 与MATLAB实现一致的优雅方式
+    - 向量场局部规划保持不变，平滑且适合动态避障
+    - 易于扩展到其他路径类型（直线、8字形等）
+    
+    调整参数:
+    - 修改 vector_field_planner_params.yaml 调整圆形路径和向量场行为
+    -->
+    
+</launch>

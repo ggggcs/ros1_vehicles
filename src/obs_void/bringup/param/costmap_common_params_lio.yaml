@@ -1,0 +1,23 @@
+obstacle_range: 10.0
+raytrace_range: 12.0
+# footprint: [[-0.08, -0.15], [-0.08, 0.15],[0.42, 0.15], [0.42, -0.15]]
+robot_radius: 0.25
+inflation_radius: 0.1
+
+transform_tolerance: 1.0
+
+# Use raw velodyne point cloud (in velodyne frame, will be transformed to base_footprint)
+# This gives real-time obstacle detection from the actual sensor
+observation_sources: pointcloud
+
+pointcloud:
+  data_type: PointCloud2
+  topic: /velodyne_points
+  marking: true
+  clearing: true
+  min_obstacle_height: -0.3
+  max_obstacle_height: 2.0
+  obstacle_range: 10.0
+  raytrace_range: 12.0
+
+map_type: costmap

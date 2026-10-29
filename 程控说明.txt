@@ -1,0 +1,28 @@
+轮式车程控运动步骤：
+
+1.启动can：
+
+cd ~/workspace/ros1_vehicles
+先source 
+source devel/setup.bash
+执行
+sudo bash scripts/start_can.sh
+
+2.启动底盘驱动：
+
+执行
+roslaunch yhs_can_control yhs_can_control.launch
+
+3.新开终端，发布控制话题消息（按如下格式）：
+
+rostopic pub -r 100 /ctrl_cmd yhs_can_msgs/ctrl_cmd "ctrl_cmd_gear: 4
+ctrl_cmd_velocity: 1.0
+ctrl_cmd_steering: 0.0
+ctrl_cmd_Brake: 0"
+
+说明：
+gear:挡位，4：前进挡，2：倒挡
+velocity:速度，范围：0 - 2
+steering:前轮转向角，范围-30 - 30，负数向右转。
+
+（调试前先架起底盘，使轮胎离地）

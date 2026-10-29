@@ -1,0 +1,660 @@
+Panels:
+  - Class: rviz/Displays
+    Help Height: 87
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /Status1
+        - /Localization1
+        - /Localization1/Map1
+        - /Sensing1
+        - /Sensing1/Odometry1
+        - /Planning1
+      Splitter Ratio: 0.4637681245803833
+    Tree Height: 418
+  - Class: rviz/Selection
+    Name: Selection
+  - Class: rviz/Tool Properties
+    Expanded:
+      - /2D Pose Estimate1
+      - /2D Nav Goal1
+    Name: Tool Properties
+    Splitter Ratio: 0.5886790156364441
+  - Class: rviz/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+    Splitter Ratio: 0.6096654534339905
+  - Class: rviz/Time
+    Name: Time
+    SyncMode: 0
+    SyncSource: LaserScan
+Preferences:
+  PromptSaveOnExit: true
+Toolbars:
+  toolButtonStyle: 2
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.30000001192092896
+      Cell Size: 1
+      Class: rviz/Grid
+      Color: 120; 120; 120
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 15
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Alpha: 1
+      Class: rviz/RobotModel
+      Collision Enabled: false
+      Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        chassis_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_fender_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_left_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_mount:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        front_right_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        imu_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        mid_mount:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        navsat_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        rear_fender_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        rear_left_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        rear_mount:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        rear_right_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+      Name: RobotModel
+      Robot Description: robot_description
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Class: rviz/TF
+      Enabled: true
+      Filter (blacklist): ""
+      Filter (whitelist): ""
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+        base_link:
+          Value: true
+        chassis_link:
+          Value: true
+        front_fender_link:
+          Value: true
+        front_left_wheel_link:
+          Value: true
+        front_mount:
+          Value: true
+        front_right_wheel_link:
+          Value: true
+        imu_link:
+          Value: true
+        map:
+          Value: true
+        mid_mount:
+          Value: true
+        navsat_link:
+          Value: true
+        odom:
+          Value: true
+        rear_fender_link:
+          Value: true
+        rear_left_wheel_link:
+          Value: true
+        rear_mount:
+          Value: true
+        rear_right_wheel_link:
+          Value: true
+        velodyne:
+          Value: true
+      Marker Alpha: 1
+      Marker Scale: 0.75
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        map:
+          odom:
+            base_link:
+              chassis_link:
+                front_fender_link:
+                  {}
+                front_left_wheel_link:
+                  {}
+                front_right_wheel_link:
+                  {}
+                imu_link:
+                  {}
+                mid_mount:
+                  front_mount:
+                    {}
+                  rear_mount:
+                    {}
+                navsat_link:
+                  {}
+                rear_fender_link:
+                  {}
+                rear_left_wheel_link:
+                  {}
+                rear_right_wheel_link:
+                  {}
+              velodyne:
+                {}
+      Update Interval: 0
+      Value: true
+    - Class: rviz/Group
+      Displays:
+        - Alpha: 0.800000011920929
+          Class: rviz/Map
+          Color Scheme: map
+          Draw Behind: true
+          Enabled: true
+          Name: Map
+          Topic: /map
+          Unreliable: false
+          Use Timestamp: false
+          Value: true
+        - Alpha: 1
+          Arrow Length: 0.30000001192092896
+          Axes Length: 0.30000001192092896
+          Axes Radius: 0.009999999776482582
+          Class: rviz/PoseArray
+          Color: 255; 100; 0
+          Enabled: true
+          Head Length: 0.07000000029802322
+          Head Radius: 0.029999999329447746
+          Name: AMCL Particles
+          Queue Size: 10
+          Shaft Length: 0.23000000417232513
+          Shaft Radius: 0.009999999776482582
+          Shape: Arrow (Flat)
+          Topic: /particlecloud
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Axes Length: 1.2000000476837158
+          Axes Radius: 0.07999999821186066
+          Class: rviz/PoseWithCovariance
+          Color: 0; 255; 0
+          Covariance:
+            Orientation:
+              Alpha: 0.30000001192092896
+              Color: 255; 255; 100
+              Color Style: Unique
+              Frame: Local
+              Offset: 1
+              Scale: 1
+              Value: true
+            Position:
+              Alpha: 0.20000000298023224
+              Color: 100; 100; 255
+              Scale: 1
+              Value: true
+            Value: true
+          Enabled: true
+          Head Length: 0.30000001192092896
+          Head Radius: 0.10000000149011612
+          Name: AMCL Pose
+          Queue Size: 10
+          Shaft Length: 0.8999999761581421
+          Shaft Radius: 0.05000000074505806
+          Shape: Arrow
+          Topic: /amcl_pose
+          Unreliable: false
+          Value: true
+      Enabled: true
+      Name: Localization
+    - Class: rviz/Group
+      Displays:
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: 0
+            Value: true
+          Axis: X
+          Channel Name: intensity
+          Class: rviz/LaserScan
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Min Color: 0; 0; 0
+          Name: LaserScan
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 2
+          Size (m): 0.029999999329447746
+          Style: Points
+          Topic: /scan
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Acceleration properties:
+            Acc. vector alpha: 1
+            Acc. vector color: 255; 0; 0
+            Acc. vector scale: 0.5
+            Derotate acceleration: true
+            Enable acceleration: false
+          Axes properties:
+            Axes scale: 0.5
+            Enable axes: true
+          Box properties:
+            Box alpha: 0.5
+            Box color: 255; 0; 0
+            Enable box: false
+            x_scale: 1
+            y_scale: 1
+            z_scale: 1
+          Class: rviz_imu_plugin/Imu
+          Enabled: false
+          Name: IMU
+          Queue Size: 10
+          Topic: /imu/data
+          Unreliable: false
+          Value: false
+          fixed_frame_orientation: true
+        - Angle Tolerance: 0.10000000149011612
+          Class: rviz/Odometry
+          Covariance:
+            Orientation:
+              Alpha: 0.5
+              Color: 255; 255; 127
+              Color Style: Unique
+              Frame: Local
+              Offset: 1
+              Scale: 1
+              Value: true
+            Position:
+              Alpha: 0.30000001192092896
+              Color: 204; 51; 204
+              Scale: 1
+              Value: true
+            Value: true
+          Enabled: true
+          Keep: 50
+          Name: Odometry
+          Position Tolerance: 0.10000000149011612
+          Queue Size: 10
+          Shape:
+            Alpha: 1
+            Axes Length: 1
+            Axes Radius: 0.10000000149011612
+            Color: 255; 25; 0
+            Head Length: 0.30000001192092896
+            Head Radius: 0.10000000149011612
+            Shaft Length: 1
+            Shaft Radius: 0.05000000074505806
+            Value: Arrow
+          Topic: /odom
+          Unreliable: false
+          Value: true
+      Enabled: true
+      Name: Sensing
+    - Class: rviz/Group
+      Displays:
+        - Alpha: 1
+          Class: rviz/Polygon
+          Color: 0; 255; 0
+          Enabled: true
+          Name: Footprint
+          Queue Size: 10
+          Topic: /move_base/local_costmap/footprint
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Axes Length: 1
+          Axes Radius: 0.10000000149011612
+          Class: rviz/Pose
+          Color: 255; 0; 0
+          Enabled: true
+          Head Length: 0.20000000298023224
+          Head Radius: 0.10000000149011612
+          Name: Goal
+          Queue Size: 10
+          Shaft Length: 0.5
+          Shaft Radius: 0.05000000074505806
+          Shape: Arrow
+          Topic: /move_base_simple/goal
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz/Path
+          Color: 100; 100; 255
+          Enabled: true
+          Head Diameter: 0.20000000298023224
+          Head Length: 0.10000000149011612
+          Length: 0.20000000298023224
+          Line Style: Lines
+          Line Width: 0.019999999552965164
+          Name: Global Plan
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Queue Size: 10
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic: /move_base/TebLocalPlannerROS/global_plan
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz/Path
+          Color: 0; 255; 0
+          Enabled: true
+          Head Diameter: 0.15000000596046448
+          Head Length: 0.10000000149011612
+          Length: 0.15000000596046448
+          Line Style: Lines
+          Line Width: 0.029999999329447746
+          Name: Local Plan
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Queue Size: 10
+          Radius: 0.019999999552965164
+          Shaft Diameter: 0.07999999821186066
+          Shaft Length: 0.07000000029802322
+          Topic: /move_base/TebLocalPlannerROS/local_plan
+          Unreliable: false
+          Value: true
+        - Alpha: 0.6000000238418579
+          Class: rviz/Map
+          Color Scheme: costmap
+          Draw Behind: false
+          Enabled: true
+          Name: Global Costmap
+          Topic: /move_base/global_costmap/costmap
+          Unreliable: false
+          Use Timestamp: false
+          Value: true
+        - Alpha: 0.699999988079071
+          Class: rviz/Map
+          Color Scheme: costmap
+          Draw Behind: false
+          Enabled: true
+          Name: Local Costmap
+          Topic: /move_base/local_costmap/costmap
+          Unreliable: false
+          Use Timestamp: false
+          Value: true
+      Enabled: true
+      Name: Planning
+    - Class: rviz/Group
+      Displays:
+        - Buffer length: 100
+          Class: jsk_rviz_plugin/Plotter2D
+          Enabled: false
+          Name: Velocity (m/s)
+          Show Value: true
+          Sub Field: linear.x
+          Topic: /cmd_vel
+          Value: true
+          auto color change: true
+          auto scale: true
+          background color: 0; 0; 0
+          backround alpha: 0.5
+          border: true
+          foreground alpha: 0.8
+          foreground color: 0; 255; 0
+          height: 120
+          left: 20
+          linewidth: 2
+          max color: 255; 0; 0
+          max value: 1.0
+          min value: -1.0
+          show caption: true
+          text size: 12
+          top: 20
+          update interval: 0.05
+          width: 180
+        - Buffer length: 100
+          Class: jsk_rviz_plugin/Plotter2D
+          Enabled: false
+          Name: Angular Vel (rad/s)
+          Show Value: true
+          Sub Field: angular.z
+          Topic: /cmd_vel
+          Value: true
+          auto color change: true
+          auto scale: true
+          background color: 0; 0; 0
+          backround alpha: 0.5
+          border: true
+          foreground alpha: 0.8
+          foreground color: 255; 100; 0
+          height: 120
+          left: 220
+          linewidth: 2
+          max color: 255; 0; 0
+          max value: 2.0
+          min value: -2.0
+          show caption: true
+          text size: 12
+          top: 20
+          update interval: 0.05
+          width: 180
+        - Buffer length: 100
+          Class: jsk_rviz_plugin/Plotter2D
+          Enabled: false
+          Name: Position Error (m)
+          Show Value: true
+          Topic: /me5413_world/absolute/position_error
+          Value: true
+          auto color change: true
+          auto scale: true
+          background color: 0; 0; 0
+          backround alpha: 0.5
+          border: true
+          foreground alpha: 0.8
+          foreground color: 100; 200; 255
+          height: 120
+          left: 20
+          linewidth: 2
+          max color: 255; 0; 0
+          max value: 2.0
+          min value: 0
+          show caption: true
+          text size: 12
+          top: 160
+          update interval: 0.05
+          width: 180
+        - Buffer length: 100
+          Class: jsk_rviz_plugin/Plotter2D
+          Enabled: false
+          Name: Heading Error (deg)
+          Show Value: true
+          Topic: /me5413_world/absolute/heading_error
+          Value: true
+          auto color change: true
+          auto scale: true
+          background color: 0; 0; 0
+          backround alpha: 0.5
+          border: true
+          foreground alpha: 0.8
+          foreground color: 255; 100; 255
+          height: 120
+          left: 220
+          linewidth: 2
+          max color: 255; 0; 0
+          max value: 90
+          min value: 0
+          show caption: true
+          text size: 12
+          top: 160
+          update interval: 0.05
+          width: 180
+      Enabled: true
+      Name: Status
+  Enabled: true
+  Global Options:
+    Background Color: 30; 30; 30
+    Default Light: true
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+      Hide Inactive Objects: true
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+    - Class: rviz/FocusCamera
+    - Class: rviz/SetInitialPose
+      Theta std deviation: 0.15000000596046448
+      Topic: /initialpose
+      X std deviation: 0.30000001192092896
+      Y std deviation: 0.30000001192092896
+    - Class: rviz/SetGoal
+      Topic: /move_base_simple/goal
+  Value: true
+  Views:
+    Current:
+      Class: rviz/ThirdPersonFollower
+      Distance: 37.631839752197266
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Field of View: 0.75
+      Focal Point:
+        X: 4.61397647857666
+        Y: 19.39156150817871
+        Z: 2.2464093490270898e-05
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 0.6000000238418579
+      Target Frame: base_link
+      Yaw: 0
+    Saved:
+      - Class: rviz/ThirdPersonFollower
+        Distance: 8
+        Enable Stereo Rendering:
+          Stereo Eye Separation: 0.05999999865889549
+          Stereo Focal Distance: 1
+          Swap Stereo Eyes: false
+          Value: false
+        Field of View: 0.75
+        Focal Point:
+          X: 0
+          Y: 0
+          Z: 0
+        Focal Shape Fixed Size: true
+        Focal Shape Size: 0.05000000074505806
+        Invert Z Axis: false
+        Name: ThirdPersonFollower
+        Near Clip Distance: 0.009999999776482582
+        Pitch: 0.6000000238418579
+        Target Frame: base_link
+        Yaw: 0
+      - Angle: -1.5700000524520874
+        Class: rviz/TopDownOrtho
+        Enable Stereo Rendering:
+          Stereo Eye Separation: 0.05999999865889549
+          Stereo Focal Distance: 1
+          Swap Stereo Eyes: false
+          Value: false
+        Invert Z Axis: false
+        Name: TopDownOrtho
+        Near Clip Distance: 0.009999999776482582
+        Scale: 15
+        Target Frame: map
+        X: 0
+        Y: 0
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 656
+  Hide Left Dock: false
+  Hide Right Dock: false
+  QMainWindow State: 000000ff00000000fd00000001000000000000017c00000236fc0200000005fb000000100044006900730070006c006100790073010000003d00000236000000c900fffffffb0000001200530065006c0065006300740069006f006e000000018b0000009c0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007300000001d1000000c20000005c00fffffffb0000000a00560069006500770073000000023f0000014a000000a400fffffffb0000000800540069006d00650000000220000000530000003900ffffff0000033e0000023600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Selection:
+    collapsed: false
+  Time:
+    collapsed: false
+  Tool Properties:
+    collapsed: false
+  Views:
+    collapsed: false
+  Width: 1216
+  X: 64
+  Y: 27

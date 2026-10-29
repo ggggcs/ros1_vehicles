@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- 1. 组合导航与融合 -->
+    <include file="$(find bynav_ros_driver)/launch/connect_net.launch" />
+    <include file="$(find imu_data_fusion)/launch/imu_fusion.launch" />
+    
+    <!-- 2. 坐标转换 -->
+    <node name="odom_relative_node" pkg="gps_to_enu" type="odom_relative_node.py" output="screen">
+        <param name="source_topic" value="/AIMhc_UGV1/odom" />
+        <param name="target_topic" value="/odom" />
+    </node>
+    
+    <!-- 3. 底层控制桥接 -->
+    <node name="nav_sim" pkg="racecar_description" type="nav_sim.py" output="screen" />
+    
+    <!-- 4. FT-C2VF 规划器 -->
+    <node name="ft_c2vf_planner" pkg="bringup" type="ft_c2vf_planner_vfinal.py" output="screen">
+        <rosparam file="$(find bringup)/param/ft_c2vf_params_vfinal.yaml" command="load"/>
+    </node>
+    
+    <!-- 5. 可视化 -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find bringup)/rviz/ft.rviz" />
+</launch>

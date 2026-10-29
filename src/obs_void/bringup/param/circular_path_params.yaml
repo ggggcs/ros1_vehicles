@@ -1,0 +1,12 @@
+# 圆形路径发布器参数配置
+
+# 圆形路径参数
+center_x: 0.0       # 圆心X坐标 (米)
+center_y: 0.0       # 圆心Y坐标 (米)
+radius: 40         # 圆半径 (米)
+num_points: 100     # 路径点数量
+direction: 'ccw'    # 方向: 'cw'(顺时针) 或 'ccw'(逆时针)
+
+# 发布参数
+publish_rate: 10.0   # 路径发布频率 (Hz)
+frame_id: 'map'     # 路径坐标系

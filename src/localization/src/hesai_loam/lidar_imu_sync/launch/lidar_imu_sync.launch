@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- 高精度 LiDAR-IMU 同步节点 -->
+  <node name="lidar_imu_sync" pkg="lidar_imu_sync" type="lidar_imu_sync_node" 
+        output="screen" respawn="false">
+    
+    <!-- 增加 IMU 缓冲区大小以获得更好的时间匹配 -->
+    <param name="imu_buffer_size" value="100" />
+    
+    <!-- 最大可接受时间差（秒） -->
+    <param name="max_acceptable_diff" value="0.01" />
+    
+    <!-- 输入话题重映射 -->
+    <remap from="/velodyne_points" to="/velodyne_points" />
+    <remap from="/imu_data" to="/imu_data" />
+    
+    <!-- 输出话题 -->
+    <remap from="/sync_velodyne_points" to="/sync_velodyne_points" />
+    <remap from="/sync_imu_data" to="/sync_imu_data" />
+  </node>
+</launch>

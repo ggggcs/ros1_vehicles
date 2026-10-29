@@ -1,0 +1,18 @@
+<launch>
+  <arg name="host" default="192.168.8.103"/>
+  <arg name="port" default="5000"/>
+  <arg name="bind_ip" default="192.168.8.102"/>
+  <arg name="command_topic" default="/clamp_command"/>
+  <arg name="config_file" default="$(find airport_clamp_driver)/config/clamp.yaml"/>
+  <node pkg="airport_clamp_driver" type="airport_clamp_node.py"
+        name="airport_clamp" output="screen" required="true">
+    <rosparam command="load" file="$(arg config_file)"/>
+    <param name="host" value="$(arg host)"/>
+    <param name="port" value="$(arg port)" type="int"/>
+    <param name="bind_ip" value="$(arg bind_ip)"/>
+    <param name="command_topic" value="$(arg command_topic)"/>
+    <param name="status_period" value="0.2"/>
+    <param name="request_timeout" value="1.0"/>
+    <param name="reconnect_delay" value="1.0"/>
+  </node>
+</launch>

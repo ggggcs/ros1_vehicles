@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Load fuzzy control parameters -->
+  <rosparam file="$(find bringup)/param/fuzzy_control.yaml" command="load" />
+  
+  <node name="ultrasonic_radar_publisher" pkg="ultrasonic_radar" type="ultrasonic_radar_publisher" output="screen">
+  </node>
+  <!-- Launch ultrasonic fuzzy control node -->
+  <node name="ultrasonic_fuzzy_control" pkg="bringup" type="untralultrasonic_fuzzy_control_new" output="screen">
+    <!-- Node parameters can be overridden here if needed -->
+    <!-- <param name="front_area_safe" value="0.8" /> -->
+  </node>
+
+  <!-- Launch fuzzy control vehicle interface -->
+  <node name="nav_sim_fuzzy" pkg="racecar_description" type="nav_sim_fuzzy.py" output="screen">
+  </node>
+</launch>

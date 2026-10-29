@@ -1,0 +1,16 @@
+<launch>
+  <arg name="cloud_topic" default="/velodyne_points"/>
+
+  <node name="obs_fitting" pkg="obs_fitting" type="main" output="screen">
+    <rosparam command="load" file="$(find obs_fitting)/config/params.yaml" />
+    <rosparam command="load" file="$(find obs_fitting)/config/obs.yaml" />
+    <param name="cloud_topic" value="$(arg cloud_topic)"/>
+  </node>
+
+  <!-- ✅ 暂时注释掉可视化节点 -->
+  <node pkg="obs_fitting" type="ellipse_visualizer" name="ellipse_visualizer" output="screen"/> -->
+
+  <node name="$(anon rviz)" pkg="rviz" type="rviz" args="-d $(find obs_fitting)/rviz/obs_fitting.rviz"/> -->
+</launch>
+
+

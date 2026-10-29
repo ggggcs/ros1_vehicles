@@ -1,0 +1,41 @@
+<launch>
+  <!-- =========================================== -->
+  <!--         PCD转2D地图生成器（离线）            -->
+  <!-- =========================================== -->
+  
+  <arg name="pcd_file" default="$(find me5413_world)/maps/GlobalMap.pcd"/>
+  <arg name="output_dir" default="$(find me5413_world)/maps"/>
+  <arg name="map_name" default="generated_map"/>
+  
+  <!-- 地图参数（与octomap_server配置一致） -->
+  <arg name="resolution" default="0.05"/>        <!-- 5cm每像素 -->
+  <arg name="min_z" default="-2.0"/>             <!-- 最小高度（调整为包含更多地面点） -->
+  <arg name="max_z" default="2.0"/>              <!-- 最大高度（调整为包含更多地面点） -->
+  <arg name="occupied_thresh" default="0.65"/>   <!-- 占据阈值 -->
+  <arg name="free_thresh" default="0.196"/>      <!-- 空闲阈值 -->
+  <arg name="flip_z" default="true"/>            <!-- 是否翻转Z轴 -->
+  
+  <!-- ⚠️ 发布velodyne传感器坐标系TF变换（关键！） -->
+  <!-- 根据实际雷达安装位置调整 x y z roll pitch yaw -->
+  <node pkg="tf" type="static_transform_publisher" name="base_to_velodyne"
+        args="0.2 0.0 0.3 0 0 0 base_link velodyne 100"/>
+  
+  <!-- <node name="pcd_to_map" pkg="me5413_world" type="pcd_to_occupancy_grid.py" -->
+  <node name="pcd_to_map" pkg="me5413_world" type="pcd_to_occupancy_grid.py"
+        output="screen" respawn="false">
+    
+    <!-- 输入输出 -->
+    <param name="pcd_file" value="$(arg pcd_file)"/>
+    <param name="output_dir" value="$(arg output_dir)"/>
+    
+    <!-- 地图参数 -->
+    <param name="resolution" value="$(arg resolution)"/>
+    <param name="min_z" value="$(arg min_z)"/>
+    <param name="max_z" value="$(arg max_z)"/>
+    <param name="occupied_thresh" value="$(arg occupied_thresh)"/>
+    <param name="free_thresh" value="$(arg free_thresh)"/>
+    <param name="flip_z" value="$(arg flip_z)"/>
+    
+  </node>
+  
+</launch>

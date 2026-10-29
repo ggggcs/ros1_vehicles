@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- 单独启动向量场规划器 -->
+    <node name="vector_field_planner" pkg="bringup" type="vector_field_planner.py" output="screen">
+        <rosparam file="$(find bringup)/param/vector_field_planner_params.yaml" command="load"/>
+    </node>
+</launch>

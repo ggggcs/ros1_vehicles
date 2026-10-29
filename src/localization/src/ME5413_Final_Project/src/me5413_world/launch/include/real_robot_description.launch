@@ -1,0 +1,26 @@
+<launch>
+  <!-- Real Robot URDF Setup - No Simulation Components -->
+  <!-- This is for real robot visualization in RViz only -->
+  
+  <arg name="config" default="base" />
+
+  <!-- fix for oneweek project -->
+  <arg name="env_runner" value="$(eval 'env_run' if not optenv('OS', 'unknown').lower().startswith('windows') else 'env_run.bat')" />
+
+  <!-- Load Robot Description (URDF) -->
+  <param name="robot_description"
+         command="$(find jackal_description)/scripts/$(arg env_runner)
+                    $(find jackal_description)/urdf/configs/$(arg config)
+                    $(find xacro)/xacro $(find jackal_description)/urdf/jackal.urdf.xacro" />
+  
+  <!-- Robot State Publisher - publishes TF for robot links -->
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+
+  <!-- Joint State Publisher - publishes joint states for wheels -->
+  <!-- Real robot hardware should publish this, but if not available, we provide a static publisher -->
+  <node pkg="me5413_world" type="joint_state_publisher.py" name="joint_state_publisher" output="screen"/>
+
+  <!-- Note: Real robot hardware drivers should publish joint states to /joint_states -->
+  <!-- No controller manager or Gazebo spawner needed for real robot -->
+
+</launch>

@@ -1,0 +1,36 @@
+<launch>
+  <!-- Simulation navigation: ground truth odometry + ego-planner -->
+  <!-- Prerequisites: ackermann_vehicle_base.launch + path_follower.launch already running -->
+
+  <arg name="map_size_x" default="100.0"/>
+  <arg name="map_size_y" default="100.0"/>
+  <arg name="odom_topic" default="/legOdom"/>
+  <arg name="cloud_topic" default="/velodyne_points"/>
+
+  <!-- ego-planner ground robot params -->
+  <include file="$(find ego_planner)/launch/advanced_param_ground.xml">
+    <arg name="map_size_x_" value="$(arg map_size_x)"/>
+    <arg name="map_size_y_" value="$(arg map_size_y)"/>
+    <arg name="odometry_topic" value="$(arg odom_topic)"/>
+    <arg name="cloud_topic" value="$(arg cloud_topic)"/>
+    <arg name="localization_mode" value="1"/>  <!-- ground truth -->
+  </include>
+
+  <!-- trajectory server -->
+  <node pkg="ego_planner" name="traj_server" type="traj_server" output="screen">
+    <remap from="/position_cmd" to="planning/pos_cmd"/>
+    <remap from="/odom_world" to="$(arg odom_topic)"/>
+    <param name="traj_server/time_forward" value="1.0" type="double"/>
+  </node>
+
+  <!-- waypoint generator (RViz 2D Nav Goal) -->
+  <node pkg="waypoint_generator" name="waypoint_generator" type="waypoint_generator" output="screen">
+    <remap from="~odom" to="$(arg odom_topic)"/>
+    <remap from="~goal" to="/move_base_simple/goal"/>
+    <remap from="~traj_start_trigger" to="/traj_start_trigger"/>
+    <param name="waypoint_type" value="manual-lonely-waypoint"/>
+  </node>
+
+  <!-- RViz visualization -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find ego_planner)/launch/sim_rviz.rviz" required="true"/>
+</launch>

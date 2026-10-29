@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Load fuzzy control parameters -->
+  <rosparam file="$(find bringup)/param/fuzzy_control.yaml" command="load" />
+
+  <!-- Launch ultrasonic fuzzy control node -->
+  <node name="ultrasonic_radar_publisher" pkg="ultrasonic_radar" type="ultrasonic_radar_publisher" output="screen">
+  </node>
+  <node name="ultrasonic_fuzzy_control" pkg="bringup" type="untralultrasonic_fuzzy_control" output="screen">
+    <!-- Node parameters can be overridden here if needed -->
+    <!-- <param name="front_area_safe" value="0.8" /> -->
+  </node>
+</launch>

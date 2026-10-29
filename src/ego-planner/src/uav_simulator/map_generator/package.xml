@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>map_generator</name>
+  <version>0.0.0</version>
+  <description>The map_generator package</description>
+
+  <maintainer email="bzhouai@todo.todo">bzhouai</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <!-- 添加所有需要的依赖 -->
+  <depend>roscpp</depend>
+  <depend>rospy</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>pcl_conversions</depend>
+  <depend>libpcl-all-dev</depend>
+  
+  <export>
+  </export>
+</package>

@@ -1,0 +1,22 @@
+obstacle_range: 8.0
+raytrace_range: 10.0
+robot_radius: 0.25
+inflation_radius: 0.15
+
+transform_tolerance: 0.5
+
+# Use raw velodyne point cloud for local costmap (for real-time obstacle detection)
+# This gives real-time obstacle detection from the actual sensor for dynamic avoidance
+observation_sources: local_pointcloud
+
+local_pointcloud:
+  data_type: PointCloud2
+  topic: /velodyne_points
+  marking: true
+  clearing: true
+  min_obstacle_height: 0.05
+  max_obstacle_height: 2.0
+  obstacle_range: 8.0
+  raytrace_range: 10.0
+
+map_type: costmap

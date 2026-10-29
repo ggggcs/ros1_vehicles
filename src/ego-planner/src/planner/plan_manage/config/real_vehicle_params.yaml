@@ -1,0 +1,643 @@
+# =============================================================================
+#  实车导航统一参数文件  (ego-planner + TEB + patchwork++ + 底盘桥接)
+#  目标机: 工控机 aarch64 (Jetson), Ubuntu 20.04 + ROS Noetic
+#  入口:   roslaunch ego_planner real_navigation.launch
+# =============================================================================
+#
+# 【怎么用】
+#   本文件在 real_navigation.launch 里以全局作用域一次性加载:
+#       <rosparam command="load" file=".../real_vehicle_params.yaml"/>
+#   下面每个顶层键就是一个**节点名**, 各节点用私有句柄(~)读取, 自动各归各位:
+#       ego_planner_node : ros::NodeHandle nh("~")            -> /ego_planner_node/...
+#       teb_tracking     : loadParams(nh_private)             -> /teb_tracking/...
+#       patchworkpp      : ros::NodeHandle pnh("~")           -> /patchworkpp/...
+#       nav_ackermann    : rospy.get_param('~...')            -> /nav_ackermann/...
+#       odom_rear_axle   : rospy.get_param('~...')            -> /odom_rear_axle/...
+#   所以**改名字会导致参数失效**, 改节点名时这里的顶层键要跟着改。
+#
+# 【最常动的几个】
+#   限速          -> tuning_base.max_vel      (锚点, 一处改全联动)
+#   感知范围      -> patchworkpp.roi
+#   车身裁剪      -> patchworkpp.self_filter
+#   膨胀/安全距离 -> ego_planner_node.grid_map.obstacles_inflation
+#                    teb_tracking.teb/min_obstacle_dist
+#                    teb_tracking.robot_radius
+#
+# 【标注约定】
+#   [实车改] = 相对仿真那套调通的参数, 因迁移实车而改动的项, 都写了原因
+#   [无效]   = 源码里根本没读这个参数, 调了不起作用, 仅为存档保留
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# 0. 全局基准量 (YAML 锚点)
+# -----------------------------------------------------------------------------
+# 这些量会被下面多个节点同时引用。YAML 的 &锚点 / *引用 机制保证「改一处、全联动」,
+# 避免出现「规划器限速 0.3 但 TEB 还是 2.5」这种两边不一致的经典事故。
+# 本节自身不被任何节点读取, 纯粹是给下面做引用源。
+tuning_base:
+  # 首跑限速。会同时作用于: 规划器(manager/optimization)、TEB、底盘桥接三处。
+  # 底盘量程是 0~2 m/s (程控说明.txt), 但首跑务必低速。
+  max_vel: &max_vel 0.6
+  max_acc: &max_acc 0.3
+
+  # [实车改] 实车轴距 0.66m (仿真是 0.335m)
+  wheelbase: &wheelbase 0.66
+
+  # [实车改] 底盘前轮转角量程 ±30° (程控说明.txt: "steering: 范围-30 - 30, 负数向右转"),
+  #          仿真是 ±45°
+  max_steer_deg: &max_steer_deg 30.0
+
+  # 【定位参考点在哪个轴上】—— 决定转角公式和最小转弯半径, 全局唯一开关。
+  #
+  # front_axle (默认): 参考点 = 雷达安装点。本车雷达正好装在**前轴正上方**
+  #     (实测后轴在雷达后 0.66m, 恰等于轴距), 所以雷达点 = 前轴中心。
+  #     odom_rear_axle 不平移 (rear_axle_x = 0)。
+  #     nav_ackermann 用前轴模型 delta = asin(w*L/v)。
+  #     最小转弯半径 = L/sin(30°) = 0.66/0.5 = 1.32 m。
+  #
+  # rear_axle: 参考点平移到后轴 (rear_axle_x = -0.66), 转角用 delta = atan(w*L/v),
+  #     最小转弯半径 = L/tan(30°) = 1.14 m。
+  #
+  # 【为什么默认选 front_axle —— 踩过的坑】
+  # 曾经把参考点搬到后轴, 结果 EGO 的规划起点和 grid_map 的参考点**一起**退到了
+  # 车后 0.66m。而 RViz 里点云和车模都是以雷达为中心画的, 于是:
+  #   - EGO 路径起点看上去落在车已经走过的地方
+  #   - TEB 把后轴开到目标点, 车身(雷达)越过目标点 0.66m -> "车总是走过头"
+  #   - patchwork 的 min_radius 空洞是以雷达为圆心的, 从后轴量车尾方向只剩
+  #     1.5-0.66=0.84m < TEB 要求的 robot_radius+min_obstacle_dist=1.10m
+  #     -> 永久性约束违反, 转向指令持续抖动(当时只能靠 ref_clearance_radius 打补丁)
+  # 改回 front_axle 后这三个问题同时消失, 且 patchworkpp.ref_clearance_radius 可归零。
+  #
+  # 精度代价: TEB 的 carlike 约束假设参考点沿车体 x 轴运动, 而前轴点实际沿
+  # theta+delta 方向。满打方向时每个 50ms 周期偏差约 7.5mm, 且 TEB 每周期从实测
+  # 位姿重解, 不累积 —— 远小于上面那三个问题的量级。
+  ref_point: &ref_point front_axle
+
+  # [实车改] 最小转弯半径。前轴参考点: L/sin(30°) = 0.66/0.5 = 1.32m, 取 1.4 留余量。
+  #          若把 ref_point 改成 rear_axle, 这里要改成 1.2 (= L/tan(30°) = 1.14 + 余量)。
+  #          仿真是 0.4m —— 若沿用, TEB 会规划出底盘根本打不出来的弯, 车会冲出路径。
+  min_turning_radius: &min_turning_radius 1.4
+
+  # 雷达中心离地高度(米)。装车高度变了必须同步改, 否则地面点会被判成障碍。
+  sensor_height: &sensor_height 1.01286
+
+  # [实车实测 2026-08-02] 车头方向在雷达坐标系里的朝向(度)。
+  # 实测: base_link / lidar_link 朝向一致, 且
+  #     +x = 车辆自身左侧 (视角: 从车尾朝车头看的左边)
+  #     +y = 车辆正后方
+  # 故 z 轴朝上, 车头前方 = -y 方向 => 绕 z 转 -90°。
+  # 为什么非改不可: LIO-SAM 配的是 lidarFrame = baselinkFrame = base_link, 且
+  # robot.urdf.xacro 里 chassis_link->velodyne 是单位阵, 所以
+  # /lio_sam/mapping/odometry 报的 yaw 就是雷达 +x 的指向(即车左); 而 TEB 的阿克曼
+  # 模型假设"车沿自身 +x 前进"。不修正的话 TEB 认为的车头方向偏 90°, 会朝侧向猛打
+  # 方向, 完全跟不了路径。
+  # 复核办法: rosrun ego_planner check_lidar_yaw.py, 直线走 3~5m, 应输出 -90。
+  lidar_yaw_offset_deg: &lidar_yaw -90.0
+
+  # 世界坐标系。LIO-SAM 的 odometryFrame 就是 odom。
+  map_frame: &map_frame odom
+
+  # 经朝向修正后、真正喂给规划与跟踪的里程计话题。
+  # /legOdom 这个名字是 grid_map.cpp:135,147 和 ego_replan_fsm.cpp:50 里**写死**的,
+  # 用它当输出话题名就不需要任何 remap。
+  # twist 表达在**车体系**(ROS 标准), teb_tracking.cpp:271-272 要的就是这个。
+  odom_topic: &odom_topic /legOdom
+
+  # 同一份 pose, 但 twist 旋到**世界系** —— 专供 ego_planner_node。
+  # 为什么要分两个话题: ego_replan_fsm.cpp:199-201 把 twist.linear 整个当**世界系
+  # 速度向量**存进 odom_vel_, 再作为 B 样条起始速度边界条件
+  # (planner_manager.cpp:93 one_segment_traj_gen 建的是世界系多项式);
+  # 而 teb_tracking 要的是车体系的 (前进速度, 横摆角速度)。同一个 twist 喂两边必错。
+  #
+  # 【踩过的坑】曾经只发车体系一个话题, EGO 于是不管车头朝哪都以为"我正以 v m/s
+  # 朝世界 +X 运动"。车头朝世界 -Y 时样条必须先往 +X 出发再拐回目标 -> 规划出 S 弯,
+  # 车头一变弯就重算 -> **路径一直在变、弯弯曲曲**, 即使前方完全没有障碍。
+  # 全局轨迹 planGlobalTraj(odom_pos_, odom_vel_, ...) 吃的是同一个错向量,
+  # 所以连全局参考路径本身都是弯的。
+  # 判据: 车朝世界 +X 开时路径正常、朝其它方向开就弯, 就是这个问题。
+  odom_topic_world: &odom_topic_world /legOdom_world
+
+  # 地面分割后的非地面点云。patchworkpp 节点用私有句柄发布, 节点名叫 patchworkpp
+  # 时即为 /patchworkpp/nonground —— 正好对上 grid_map.cpp:151 里写死的名字。
+  nonground_topic: &nonground_topic /patchworkpp/nonground
+
+
+# -----------------------------------------------------------------------------
+# 1. odom_rear_axle —— 里程计朝向修正 (雷达坐标轴 -> 车体坐标轴)
+#    源码: plan_manage/scripts/odom_rear_axle.py
+# -----------------------------------------------------------------------------
+odom_rear_axle:
+  # 【控制必须用 /odometry/imu, 不能用 /lio_sam/mapping/odometry】
+  #
+  # LIO-SAM 两路里程计输出的实测对比 (2026-08-02, 本车 Jetson, 92 万点/帧):
+  #     话题                              header 延迟   频率
+  #     /lidar_points (驱动出云)             158 ms      -
+  #     /lio_sam/deskew/cloud_deskewed       480 ms      -
+  #     /lio_sam/mapping/odometry            768 ms    4.7 Hz   <- 建图/回环用
+  #     /odometry/imu (TransformFusion)     19.8 ms    100 Hz   <- 控制用
+  #     TF odom->base_link                    12 ms    214 Hz   <- RViz 画车用的
+  #
+  # mapOptimization 要做 scan-to-map 匹配, 在 Jetson 上跑这么稠密的云需要 768ms。
+  # imuPreintegration 里的 TransformFusion 就是为控制准备的: 把 768ms 前那帧雷达
+  # 位姿用 IMU 预积分外推到当前时刻, 以 IMU 频率发布, frame_id 同为 odom, 原点一致。
+  #
+  # 【踩过的坑 —— "车明明在路径上却莫名其妙开始转弯"】
+  # RViz 画车身/点云用 TF(12ms), 而 EGO/TEB 当时吃 mapping/odometry(768ms):
+  # **人眼看到的车和控制器看到的车不是同一个车**。0.3m/s 下位置落后 23cm;
+  # 车一旦有横摆角速度 w, 航向落后 w*0.768s (w=0.2rad/s 时差 8.8°)。
+  # TEB 每周期拿这个落后位姿当固定起点(buildInitialPlan), 车已经修正回路径了
+  # TEB 还看到"车偏在一边"继续打方向 -> 过冲 -> 反向重复 -> 纯延迟极限环,
+  # 直线上就是**画龙**(周期约 4×总延迟≈4s, 0.3m/s 下波长约 1.2m)。
+  #
+  # 静态噪声实测两路一样干净(yaw 标准差 0.009°, 位置 0.2~0.3cm), 所以问题不是
+  # 噪声而是**延迟**——车不动时延迟不显形, 一动就致命。
+  #
+  # 注意: 这只改本节点订阅哪个话题, **LIO-SAM 本身一行没动**。
+  input_topic: /odometry/imu
+  output_topic: *odom_topic                 # twist 车体系 -> teb_tracking
+  world_twist_topic: *odom_topic_world      # twist 世界系 -> ego_planner_node
+  lidar_yaw_offset_deg: *lidar_yaw
+  ref_point: *ref_point
+
+  # 输出限频(Hz)。输入 100Hz, 而 teb_tracking 控制环只有 20Hz, 50Hz 已是 2.5 倍
+  # 过采样; 限频省掉 Jetson 上 Python 端一半的四元数运算, 代价是 10ms 零阶保持
+  # 延迟(相对省下的 768ms 可忽略)。填 0 = 不限频。
+  max_output_rate: 50.0
+
+  # 参考点平移: 参考点在**车体系**下相对雷达的位置(米), 负值 = 车后方。
+  #
+  # **默认 0 = 不平移, 参考点就是雷达安装点(= 前轴中心)。**
+  # 见 tuning_base.ref_point 里"为什么默认选 front_axle"的完整说明。
+  #
+  # 实测数据留档: 后轴中心在激光雷达正后方 0.66m。
+  # 与 obs_fitting/config/obs.yaml 的 car_area 自洽: 雷达距车头 0.67m、距车尾 1.1m,
+  # 则后悬 = 1.1-0.66 = 0.44m, 总长 0.67+1.1 = 1.77m = 轴距0.66 + 前悬0.67 + 后悬0.44。
+  # 结论: **雷达装在前轴正上方**, 所以不平移时参考点恰好是前轴中心, 转角换算有精确解
+  # (delta = asin(w*L/v), 见 nav_ackermann.py)。
+  #
+  # 若要切回后轴模型, 三处必须同时改:
+  #     tuning_base.ref_point        -> rear_axle
+  #     tuning_base.min_turning_radius -> 1.2
+  #     这里 rear_axle_x             -> -0.66
+  #     patchworkpp.ref_clearance_radius -> 1.15 (否则车尾侧净空不足, TEB 抖)
+  rear_axle_x: 0.0
+  rear_axle_y: 0.0
+  rear_axle_z: 0.0
+
+  # ---- twist 来源 ----
+  # teb_tracking.cpp:271-272 从 odom 的 twist 取 TEB 的**起始速度**。若恒为 0,
+  # TEB 每个 50ms 周期都以为"车此刻静止", 配合 acc_lim_theta 限制会认为角速度必须
+  # 从 0 爬升 -> **系统性少打方向、转弯偏晚、切内道**。
+  #
+  # 【换输入话题后这里必须配对改, 否则速度全错且极难查】
+  # 两路 LIO-SAM 里程计的 twist 语义完全不同, 都不能直接用:
+  #   /lio_sam/mapping/odometry : mapOptmization 根本不填, 恒为 0
+  #   /odometry/imu             : 填了, 但**混合坐标系** ——
+  #        twist.linear  = GTSAM NavState 速度, 在**世界系**
+  #        twist.angular = 陀螺角速度, 在**车体系**
+  #      而且带偏置: 实测车静止时 linear = (-0.0104, -0.0039) m/s
+  #
+  # 取值:
+  #   ctrl_fb (默认)     忽略输入 twist, 用底盘 /ctrl_fb 的真实轮速 + 真实前轮转角
+  #                      按自行车模型重建。100Hz, 无偏置, 语义明确 —— 首选。
+  #   odom_body          输入 twist 按 ROS 标准(表达在 child_frame)处理
+  #   odom_world_linear  输入 linear 按世界系、angular 按车体系(/odometry/imu 语义)
+  #
+  # 老版本靠"twist 全零就说明没人填"自动判断, 换到 /odometry/imu 后 twist 非零但
+  # 语义不同, 会静默走错分支 -> 已改成必须显式指定。
+  twist_source: ctrl_fb
+  ctrl_fb_topic: /ctrl_fb
+  ctrl_fb_timeout: 0.5
+  # twist_source=ctrl_fb 但 /ctrl_fb 断流(实车上 yhs_can_control 退出/CAN 断时真的
+  # 会发生)时降级到哪:
+  #   zero            退 0 (旧行为: TEB 以为车静止, 少打方向)
+  #   odom_body       用输入里程计的 twist, 按标准 ROS 语义处理
+  #   odom_world_linear 用输入 twist, 按 /odometry/imu 语义 (linear 世界系 + angular 车体系)
+  fallback_twist_source: zero
+  wheelbase: *wheelbase
+  gear_reverse: 2
+
+  publish_tf: true              # 额外发 odom->base_rear_axle 供 RViz 观察, 不动 LIO-SAM 的 TF
+  rear_frame: base_rear_axle
+  flatten_2d: false             # true = 输出压平 z/roll/pitch (2D 场地可开)
+
+
+# -----------------------------------------------------------------------------
+# 2. patchworkpp —— 地面分割 (GPU ROI 裁剪 + patchwork++)
+#    源码: plan_manage/src/patchworkpp_node.cpp
+#    复用 obs_fitting 的 patchworkpp.hpp 与 libcudafilter.so, **不修改 obs_fitting**
+# -----------------------------------------------------------------------------
+patchworkpp:
+  cloud_topic: /velodyne_points     # hesai_to_velodyne 转换后的话题, frame_id = velodyne
+  lidar_yaw_offset_deg: *lidar_yaw
+  use_gpu: true                     # false 或无 CUDA 时自动退化为 CPU 裁剪, 结果一致
+
+  # ---- ROI 裁剪 (在送进 patchwork 之前执行) ----
+  # 为什么必须有: patchworkpp.hpp:1026-1045 的 pc2czm() 里
+  #     if ((r <= max_range_) && (r > min_range_)) { 正常分区做地面估计 }
+  #     else                                       { cloud_nonground.push_back(pt); }
+  # 即**半径小于 min_r 或大于 max_r 的点一律被当成障碍物**。车身自身被扫到的点全落在
+  # min_r 以内, 于是车周围形成一圈假障碍(teb_tracking_params.yaml 里说的"车身自干扰点
+  # 形成 ~1m 固定点环"), 经 obstacles_inflation 膨胀后规划器会以为自己被围死。
+  #
+  # 坐标一律用**车体语义**填写, 四个方向都填正数(该方向的距离, 米)。
+  # 节点内部按 lidar_yaw_offset_deg 换算, 不用关心雷达怎么装。
+  # 输出点云保持原始雷达系坐标, 只筛选不改坐标。
+  # 调参办法: RViz 订阅 /patchworkpp/roi 看裁剪结果。
+  roi:
+    enable: true
+    # 按 ego-planner 实际需求给, 不要给大: grid_map.local_update_range = 4m,
+    # teb_tracking.obstacle_radius = 3m, 所以 4~6m 足够。
+    front: 6.0
+    back:  4.0
+    left:  4.0
+    right: 4.0
+    # 雷达系 z (朝上)。地面在 z = -sensor_height = -1.013,
+    # 下限必须低于它, 否则 patchwork 没有地面点可拟合。
+    z_min: -1.2
+    # 上限约离地 2.0m, 与 teb_tracking.obstacle_z_max 对应。
+    z_max:  1.0
+
+  # ---- 车身裁剪 ----
+  # 数值严格对应 obs_fitting/config/obs.yaml 的 car_area:
+  #     front:-0.67  back:1.1  left:0.5  right:-0.5  up:0.2  down:-1.01286
+  # 它在 main.cpp 里的用法是 setMin(CAR_RIGHT, CAR_FRONT, CAR_DOWN) /
+  # setMax(CAR_LEFT, CAR_BACK, CAR_UP) + setNegative(true), 即雷达系
+  #     x∈[-0.5,0.5]  y∈[-0.67,1.1]  z∈[-1.01286,0.2]
+  # 按 yaw=-90 换算成车体语义(x_L=yv, y_L=-xv)后就是下面这组。
+  # 若发现车周围仍有一圈固定障碍(比如传感器支架、货箱超出了这个范围), 放大 back/left/right。
+  self_filter:
+    enable: true
+    front: 0.67
+    back:  1.1
+    left:  0.5
+    right: 0.5
+    z_min: -1.01286
+    z_max:  0.2
+
+  # 水平半径小于此值的点直接丢弃。obs_fitting 没做这步, 但对 ego-planner 很关键:
+  # 车身框只盖到半径 sqrt(1.1^2+0.5^2)=1.21m, 而 patchwork 的 min_r 是 1.5m,
+  # 中间 1.21~1.5m 这圈残留点会全变成假障碍。设 0 则退回 obs_fitting 的行为。
+  # 代价: 车周围 1.5m 内没有感知 —— 但那圈点本来就全是假障碍, 没有信息量。
+  min_radius: 1.5
+
+  # 以**车辆参考点**为圆心的净空半径(米), 0 = 关闭。
+  #
+  # **参考点 = 雷达时(现在的默认)填 0** —— 上面 min_radius 的空洞本来就是以雷达为
+  # 圆心的, 不需要再补一个同心圆。
+  #
+  # 只有把参考点平移到后轴 (odom_rear_axle.rear_axle_x = -0.66) 时才需要开:
+  # 那时从参考点量, 空洞在车尾方向只剩 min_radius-0.66 = 0.84m, 而 TEB 要求的净空
+  # = teb_tracking.robot_radius(0.6) + teb/min_obstacle_dist(0.5) = 1.10m,
+  # 0.84 < 1.10 -> 永久性违反约束, TEB 每 50ms 都在试图逃离一个逃不掉的障碍,
+  # 转向指令持续抖动。实测(车静止、前方 5m 无障碍、EGO 路径是直线):
+  #     teb_tracking 自报 nearest=0.85~0.88m, w 在 ±0.03 之间反复跳变;
+  #     开到 1.15 后 nearest=1.15~1.16m, w 变成稳定值。
+  # 要开的话取值 >= robot_radius + teb/min_obstacle_dist, 即 1.15。
+  ref_clearance_radius: 0.0
+  # 参考点在车体系下相对雷达的纵向位置, 必须与 odom_rear_axle.rear_axle_x 一致
+  ref_offset_x: 0.0
+
+  # 体素降采样边长(米), 0 = 关闭。**性能的决定因素, 不要随便关。**
+  # 本车实测(128 线雷达 921600 点/帧, 环境点集中在 r=1.5~3m):
+  #     voxel_leaf=0    -> ROI 496314 点, 裁剪 30ms + 分割 109ms = 139ms (超 10Hz 的 100ms 预算)
+  #     voxel_leaf=0.05 -> ROI  28115 点, 裁剪 15ms + 分割 5.3ms =  20ms (分割快 20 倍)
+  # 注意: 收紧 ROI 外边界几乎没用(8m 收到 6m 只从 514020 降到 496314), 因为点集中在近处。
+  # 0.05 对下游零损失: grid_map.resolution 本来就是 0.1m。降采样在 GPU 上做(VOXELGRID)。
+  voxel_leaf: 0.05
+
+  # ---- patchwork++ 本体参数 (以下数值与 obs_fitting/config/params.yaml 完全一致) ----
+  sensor_height: *sensor_height
+  mode: "czm"
+  verbose: false
+  visualize: false          # 只做分割, 不发 plane/PolygonArray, 省带宽
+
+  num_iter: 2               # 地面平面 PCA 迭代次数
+  num_lpr: 20               # 选作最低点代表的最大点数
+  num_min_pts: 5            # 每个 patch 至少多少点才做平面估计
+  th_seeds: 0.25            # 初始种子点选取阈值
+  th_dist: 0.125            # 地面厚度阈值
+  th_seeds_v: 0.25          # 垂直结构种子阈值
+  th_dist_v: 0.1            # 垂直结构厚度阈值
+  max_r: 80                 # 地面估计最大半径, 超出的点直接判为障碍
+  min_r: 1.5                # 地面估计最小半径, 以内的点直接判为障碍(见上面 min_radius)
+  uprightness_thr: 0.707    # 法向量竖直度阈值
+  adaptive_seed_selection_margin: -1.2
+
+  czm:
+    num_zones: 4
+    num_sectors_each_zone: [16, 32, 54, 32]
+    mum_rings_each_zone: [2, 4, 4, 4]     # 注: 原库拼写就是 mum_, 不是笔误, 别改
+    elevation_thresholds: [0.0, 0.0, 0.0, 0.0]
+    flatness_thresholds:  [0.0, 0.0, 0.0, 0.0]
+
+  enable_RNR: true          # 反射噪声去除
+  enable_RVPF: true         # 垂直平面拟合
+  enable_TGR: true          # 临时地面恢复
+  RNR_ver_angle_thr: -15.0
+  RNR_intensity_thr: 0.2
+
+
+# -----------------------------------------------------------------------------
+# 3. ego_planner_node —— 全局 B 样条规划器 (EGO-Planner)
+#    源码: plan_manage/src/{ego_planner_node,ego_replan_fsm,planner_manager}.cpp
+#          plan_env/src/grid_map.cpp, bspline_opt/src/bspline_optimizer.cpp
+#    这些值原本写在 launch/advanced_param_ground.xml 里, 现全部搬到这里。
+#    注意: 实车 launch 不再 include 那个 xml, 避免两处重复。
+# -----------------------------------------------------------------------------
+ego_planner_node:
+
+  fsm:
+    flight_type: 1            # 1 = RViz 手动给目标点, 2 = 预设航点
+    localization_mode: 0      # [实车改] 0 = SLAM(实车), 1 = ground truth(仿真)
+
+    # ---- 重规划节奏 ----
+    # 【先搞清楚 EGO 到底多久重规划一次】exec_timer_ 是 100Hz(ego_replan_fsm.cpp:44),
+    # 但那只是状态机 tick, 真正触发重规划的是 EXEC_TRAJ 里这个判据:
+    #     pos = position_traj_.evaluateDeBoorT(t_cur)        // 轨迹上的期望位置
+    #     if ((info->start_pos_ - pos).norm() < replan_thresh_) return;   // 不重规划
+    # 即"期望位置沿轨迹推进了 thresh_replan 米"才重规划一次。
+    # 重规划时起点用的是**实际位置** odom_pos_ ——
+    # 注意 planFromCurrentTraj() 里那三行 start_pt_=evaluateDeBoorT(t_cur) 是**死代码**,
+    # 紧接着调用的 callReboundReplan() 第 526-528 行会无条件覆盖成 odom_pos_/odom_vel_。
+    #
+    # [实车改] 原值 1.5m: 0.3m/s 下要 **5 秒**才重规划一次, 这 5 秒里车与轨迹的
+    # 偏差完全靠 TEB 兜, 一旦偏出去就得等很久才纠正 -> "车走过了路径还没更新"。
+    # 0.5m ≈ 1.7s, 与 TEB 的 lookahead_dist(1.5m) 配合合理。
+    # 再小的代价: 每次重规划都是一次完整的 B 样条优化(几十 ms), 且新旧轨迹衔接处
+    # 会有微小不连续; 0.3 以下不建议。
+    thresh_replan: 0.5
+
+    # [实车改] 距终点小于此值不再重规划。
+    # 原值 0.1m **比 teb/xy_goal_tolerance(0.3) 还小**: TEB 已经判定"到达终点"停车了,
+    # EGO 却还在不停生成新的短轨迹, 停车点附近路径反复跳变。
+    # 必须 >= teb/xy_goal_tolerance, 取 0.5 留余量。
+    thresh_no_replan: 0.5
+
+    planning_horizon: 10.0     # 单次规划的最远距离(米)
+    planning_horizen_time: 2.0
+    emergency_time_: 1.0      # 紧急停车判定时间(秒)
+    waypoint_num: 0           # flight_type=2 时的预设航点数
+
+  grid_map:
+    resolution: 0.1           # 占据栅格分辨率(米)
+    map_size_x: 100.0
+    map_size_y: 100.0
+    map_size_z: 3.0
+    local_update_range_x: 13.0 # 局部地图更新半径(米), 与 patchworkpp.roi 呼应
+    local_update_range_y: 13.0
+    local_update_range_z: 1.0
+    obstacles_inflation: 0.6   # 3D 障碍膨胀(米) —— 这是"车离障碍多远"的主要旋钮
+    obstacles_inflation2d: 0.6 # 2D 占据图膨胀(米)
+    local_map_margin: 10       # int
+    ground_height: -0.01
+    map_type: 1                # int, 1 = PLANNING, 2 = EXPLORATION
+    frame_id: *map_frame
+    pose_type: 2               # int, 2 = ODOMETRY
+    show_occ_time: false
+    # z 向裁剪: 忽略世界系高度低于此值的点(米), 滤掉地面残渣。
+    # 0.0 = 全保留(飞行器默认), >0 = 滤掉低于该高度的点。
+    obstacle_min_height: 0.05
+
+    # 概率占据栅格参数
+    p_hit: 0.65
+    p_miss: 0.35
+    p_min: 0.12
+    p_max: 0.90
+    p_occ: 0.80
+    min_ray_length: 0.1
+    max_ray_length: 5.0
+
+    # 相机内参: 激光模式下不使用(深度图路径 /grid_map/depth 无人发布, 同步器不触发),
+    # 保留是因为 grid_map 构造时无条件读取。
+    cx: 321.0
+    cy: 243.0
+    fx: 387.0
+    fy: 387.0
+    use_depth_filter: false
+    skip_pixel: 2              # int
+
+  manager:
+    max_vel: *max_vel          # [实车改] 见 tuning_base
+    max_acc: *max_acc          # [实车改]
+    max_jerk: 4.0
+    control_points_distance: 0.4   # B 样条控制点间距(米)
+    feasibility_tolerance: 0.05
+    planning_horizon: 5.0
+
+  optimization:
+    lambda_smooth: 1.0         # 平滑项权重
+    lambda_collision: 0.65     # 避障项权重
+    lambda_feasibility: 0.2    # 动力学可行性权重
+    lambda_fitness: 1.0        # 贴合原路径权重
+    dist0: 0.5                 # 期望的障碍安全距离(米)
+    max_vel: *max_vel          # [实车改]
+    max_acc: *max_acc          # [实车改]
+    order: 3                   # int, B 样条阶数, 不要动
+
+
+# -----------------------------------------------------------------------------
+# 4. teb_tracking —— TEB 闭环跟踪 (B 样条 -> 最近点投影 -> TEB 优化 -> /cmd_vel)
+#    源码: plan_manage/src/teb_tracking.cpp
+# -----------------------------------------------------------------------------
+teb_tracking:
+
+  # ---- 话题 ----
+  traj_topic: /planning/bspline
+  odom_topic: *odom_topic          # [实车改] 用朝向修正后的里程计, 不能直接用 LIO-SAM 原话题
+  obstacle_topic: *nonground_topic
+  cmd_topic: /cmd_vel              # 由 nav_ackermann 转成底盘的 /ctrl_cmd
+  frame_id: *map_frame
+
+  # ---- 控制循环 ----
+  control_frequency: 20.0
+  # [实车改] 定位换成 /odometry/imu 后是 100Hz 源、限频 50Hz 输出, 所以可以把这个
+  # 急停门收紧到 0.3s (= 连丢 15 帧)。原来吃 mapping/odometry 只有 4.7Hz, 不得不
+  # 放宽到 1.0s —— 那意味着定位挂了之后车还会盲开整整 1 秒。
+  odom_timeout: 0.3
+
+  # ---- 路径采样与截取 ----
+  bspline_time_step: 0.05
+  path_sample_step: 0.1            # 弧长离散间隔(米)
+  min_path_points: 3
+  # [实车改 2026-08-10 第四次] 前瞻 1.5 -> 4.0m —— 航向振荡的主阻尼旋钮
+  # 前三次结论: viapoint_sep 0.3->0.8 把振幅从 ±15° 压到 ±10°; 转向死区反而更糟
+  # (去掉连续小修正的阻尼作用)。波形本质是**车头在线上 ±5° 摆动**的欠阻尼航向振荡:
+  # TEB 目标点越近, 修正越急 -> 过冲。前瞻拉到 4m(0.3m/s 下 ≈13s), 航向修正分摊到
+  # 更长弧上, 等于给航向环加阻尼。若还摆继续 5m; 若转弯切弯严重往回 3m。
+  lookahead_dist: 4.0
+  # [实车改 2026-08-10 第二次] via-point 间距 0.3 -> 0.8m —— 治摆轮关键旋钮之一
+  # capture 波形: 车从弯里回正, 一个周期就从 -14.5° 甩到 +15°, 是 TEB 对横向误差
+  # 的局部修正过猛。根因: via-point 每 0.3m 一个(太密), 车偏 2cm 就得在 0.3m 内
+  # 穿回路径, 必须打急曲率 -> 超调 -> 反向 -> 发散(环路延迟 402ms 放大)。
+  # 拉开到 0.8m, 修偏动作分摊到更长弧上。若还摆继续拉到 1.2; 切弯太松往回 0.5。
+  viapoint_sep: 0.8
+  decel_dist: 1.0                  # [实车改] 剩余路径短于此值开始减速, 同样按速度缩放
+
+  # ---- 速度平滑 (斜率限制) ----
+  # teb_tracking.cpp publishCmd() 对 v 和 w **各自独立**做加性限斜率:
+  #     sm_v = limitSlope(v, last_v_, max_v_step_)
+  #     sm_w = limitSlope(w, last_w_, max_w_step_)
+  # 而下游 nav_ackermann 是按 **比值** 算转角的: delta = asin(w*L/v)。
+  # 两个量各限各的 -> 过渡过程中 w/v 的比值(= 曲率)完全不是 TEB 要的那个。
+  #
+  # 【踩过的坑 —— 起步就打死方向】
+  # 原来 max_v_step=0.015 (20 周期到 0.3m/s), max_w_step=0.03 (w 涨得快 2 倍)。
+  # TEB 要一个很缓的弯 (v=0.3, w=0.05, R=6m), 从停车起步实际执行:
+  #     周期 2:  v=0.030 w=0.050 -> w*L/v=1.10 -> asin 饱和 -> **满舵 30°**
+  #     周期 5:  v=0.075 w=0.050 -> 0.44       -> 26°
+  #     周期 20: v=0.300 w=0.050 -> 0.11       -> 6.3°  <- TEB 的本意
+  # 该打 6.3° 的弯, 车先打死到 30° 再花 1 秒退回来。而 teb_tracking 在
+  # "无轨迹/go_flag≠1/剩余路径过短/odom 超时" 各种分支都会调 publishCmd(0,0),
+  # 所以这个过程会反复发生。
+  #
+  # 【正确的配对关系】max_w_step = max_v_step / min_turning_radius
+  # 推导: 共同爬坡阶段执行的半径 R_exec = max_v_step / max_w_step, 令其 = R_min
+  # 即可保证过渡过程中的曲率不超过物理极限。此时 w 先到目标值那一刻的转角峰值
+  #     delta_peak = asin(L / R_min) = asin(0.66/1.4) = 28.1°
+  # 与 w 的目标值无关, 恒定且不饱和。
+  # 0.015 / 1.4 = 0.0107 -> 0.0107/0.05s = 0.214 rad/s^2 < acc_lim_theta 0.3 ✓
+  # 【改 max_v_step 或 min_turning_radius 时, 这个值必须跟着重算】
+  max_v_step: 0.015                # 0.015/0.05s = 0.3 m/s^2, 与 teb/acc_lim_x 对齐
+  max_w_step: 0.0107               # = max_v_step / min_turning_radius (1.4)
+
+  # ---- 倒车安全网 ----
+  # 触发: TEB 输出倒车解即执行; 兜底: 持续倒车/无法前进超时 -> 发 /teb_tracking/stuck
+  # 请求 FSM 从实际位姿重规划。
+  blocked_timeout: 3.0             # 无法前进(plan 失败/倒车被堵)超过多少秒请求重规划
+  reverse_timeout: 8.0             # 持续倒车超过多少秒请求重规划
+  reverse_rear_safety_dist: 0.6    # 后向保险杠距离(米), 小于此值禁止倒车
+  reverse_rear_sector_deg: 140     # 后扇区角度(度)
+  direction_hold_cycles: 4         # 方向切换停顿周期数 (4*50ms=0.2s), 等转向到位
+
+  # ---- 障碍物 (来自 patchworkpp 的非地面点云) ----
+  use_obstacles: true
+  obstacle_radius: 3.0             # 取车周围多少米内的点作为障碍
+  obstacle_z_min: 0.05             # 世界系 z 下限, 同 grid_map.obstacle_min_height
+  obstacle_z_max: 2.0
+  obstacle_max_points: 100         # 障碍点数上限(防 TEB 变慢)
+  # [实车改] 仿真小车 0.35m; 实车轴距就有 0.66m, 车体明显更大。
+  #
+  # 【参考点 = 雷达(前轴)时的足迹核算】
+  # 以雷达为圆心量(obs_fitting/config/obs.yaml 的 car_area): 车头在前 0.67m,
+  # 车尾在后 1.1m, 半宽 0.5m。
+  # 有效余量 = robot_radius 0.6 + teb/min_obstacle_dist 0.5 = 1.10m:
+  #     前向 1.10 > 0.67  ✓ 覆盖车头, 还有 0.43m 富余
+  #     侧向 1.10 > 0.50  ✓
+  #     后向 1.10 = 1.10  刚好齐平(倒车时无富余, 见 enable_reverse)
+  # 前进工况保护是够的。这也是把参考点放回雷达的一个附带好处 —— 参考点在后轴时
+  # 车头位于后轴前 1.33m > 1.10m, **车头前 0.2m 是欠保护的**。
+  # 若要贴障碍作业可调到 0.8~1.0 并接受通过性下降(teb_tracking 是圆形模型,
+  # 改多边形足迹要动算法代码)。
+  robot_radius: 0.6
+
+  # ---- TEB: 轨迹 ----
+  teb/dt_ref: 0.3
+  teb/min_samples: 3
+  teb/max_samples: 500
+  teb/force_reinit_new_goal_dist: 1.0
+  teb/force_reinit_new_goal_angular: 1.57079632679
+
+  # ---- TEB: 机器人 (阿克曼) ----
+  teb/max_vel_x: *max_vel          # [实车改] 与规划器同步, 靠锚点保证不会两边不一致
+  teb/max_vel_x_backwards: 0.15    # [实车改] 倒车上限, 同样压低
+  # [实车改] 0.3m/s 下 2.0rad/s 不可能达到(需半径 0.15m), 按实际能力给:
+  # w_max = v / R_min = 0.3 / 1.2 = 0.25 rad/s, 留余量取 0.3
+  teb/max_vel_theta: 0.3
+  teb/acc_lim_x: *max_acc          # [实车改]
+  teb/acc_lim_theta: 0.3           # [实车改]
+  teb/min_turning_radius: *min_turning_radius   # [实车改] 关键项, 见 tuning_base
+  teb/wheelbase: *wheelbase        # [实车改]
+
+  # ---- TEB: 目标容差 ----
+  teb/xy_goal_tolerance: 0.3
+  teb/yaw_goal_tolerance: 0.3
+
+  # ---- TEB: 障碍物 ----
+  teb/min_obstacle_dist: 0.5       # 与障碍的最小距离(米)
+  teb/inflation_dist: 0.2
+
+  # ---- TEB: 优化 (权重与仿真调通值一致, 未改) ----
+  teb/no_inner_iterations: 5
+  teb/no_outer_iterations: 4
+  teb/weight_max_vel_x: 2.0
+  teb/weight_max_vel_theta: 3.0
+  teb/weight_acc_lim_x: 1.0
+  teb/weight_acc_lim_theta: 2.0
+  teb/weight_kinematics_nh: 3000.0        # 非完整约束权重, 阿克曼必须大
+  teb/weight_kinematics_forward_drive: 1.0 # 仅对 diffdrive 生效; carlike 下官方明确忽略
+  teb/weight_kinematics_turning_radius: 1.0
+  teb/weight_optimaltime: 2.0
+  teb/weight_shortest_path: 1.0
+  # [实车改 2026-08-10 第二次] via-point 权重 50 -> 40 —— 配合间距 0.8m 降局部增益
+  # 第一次从 100 降到 50 只让峰值 28->24, 证明权重不是主因, 间距才是(见上方
+  # viapoint_sep 注释)。这次间距拉开后再小幅降权重, 双管齐下。若切弯贴不住路径,
+  # 权重回 60 而**间距优先往回调**。
+  teb/weight_viapoint: 40.0
+  teb/weight_obstacle: 1.0
+  teb/weight_inflation: 0.1
+  teb/free_goal_vel: true
+  # [实车改 2026-08-10 第四次] 取速度指令的位姿从 3 -> 6 个带点前(0.9s -> 1.8s 前)。
+  # TEB 优化出的轨迹是动力学可行的, 指令取轨迹更靠前的速度 = 预测式, 让车沿轨迹
+  # 平滑滑行而不是每周期对当前位姿急修 —— 给航向环再加一层阻尼, 配合 lookahead 4m。
+  teb/control_look_ahead_poses: 6
+
+
+# -----------------------------------------------------------------------------
+# 5. nav_ackermann —— 底盘桥接 (/cmd_vel -> /ctrl_cmd)
+#    源码: plan_manage/scripts/nav_ackermann.py
+# -----------------------------------------------------------------------------
+# 注意与 racecar_description/scripts/nav_sim.py 的区别, 两者不能混用:
+#   nav_sim.py : 把 angular.z 当作**前轮转向角(rad)**, 且写死 gear=4(不能倒车)
+#   本节点     : 把 angular.z 当作**角速度(rad/s)** —— teb_tracking.cpp:697 发的就是 w,
+#                自己按自行车模型算 delta = atan(w*L/v), 并用挡位实现前进/倒车
+# 底盘约束(程控说明.txt + drivers/yhs_can_control/src/yhs_can_control.cpp:92):
+#   ctrl_cmd_velocity 必须 >= 0 (负速度会被驱动钳成 0), 方向只能靠挡位
+nav_ackermann:
+  cmd_vel_topic: /cmd_vel
+  ctrl_cmd_topic: /ctrl_cmd
+  wheelbase: *wheelbase
+  max_speed: *max_vel
+  max_steer_deg: *max_steer_deg
+
+  # 转角公式选择, 必须与 odom_rear_axle.rear_axle_x 一致(统一由 tuning_base.ref_point 给):
+  #   front_axle -> delta = asin(w*L/v)   参考点在前轴(= 雷达安装点), 本车默认
+  #   rear_axle  -> delta = atan(w*L/v)   参考点在后轴
+  # 用错的后果是**系统性偏差**: w*L/v=0.5 时 asin 给 30.0°, atan 给 26.6°,
+  # 差 3.4° —— 转弯偏晚、切内道, 且转得越急差得越多。
+  ref_point: *ref_point
+
+  enable_reverse: true             # false = 收到负速度直接停车(更保守)
+  gear_forward: 4                  # 程控说明.txt: 4 = 前进挡
+  gear_reverse: 2                  #               2 = 倒挡
+  direction_switch_dwell: 0.4      # 换向时先发 0 速多少秒, 等挡位啮合
+
+  publish_rate: 50.0               # 定频发布, 不依赖 /cmd_vel 到达节奏(teb 只有 20Hz)
+  cmd_timeout: 0.5                 # 超过多久收不到 /cmd_vel 就停车(看门狗)
+  v_deadband: 0.02                 # 速度死区(m/s), 以内视为停车
+  v_min_for_steer: 0.05            # |v| 低于此值保持上次转角, 不打死方向
+                                   # (atan(w*L/v) 在 v->0 时发散)
+  steer_rate_deg_s: 120.0          # 转角变化率上限(度/秒), 保护转向机构
+
+  # ---- 转向死区(带滞回) —— 默认关闭, 实测会加剧摆轮 ----
+  # [实车改 2026-08-10 第三次, 已撤] 死区把 |δ|<1.5° 的校正压成 0, 实测(第四次采集)
+  # 波形变成"贴 0 漂移 -> 猛甩 ±8°"的锯齿, 肉眼更糟: 死区掐掉了连续小修正, 而这恰恰
+  # 是稳定极限环的阻尼来源。结论: 本车摆轮缺的是**阻尼**不是**增益**, 死区方向错误。
+  # 代码保留(nav_ackermann.py), 想再试填 >0 即可, 但优先调 lookahead/control_look_ahead_poses。
+  steer_deadband_deg: 0.0          # 0 = 关闭
+  steer_deadband_exit_deg: 0.0     # 0 = 关闭
+
+
+# =============================================================================
+# 附: 以下参数出现在 launch/advanced_param_ground.xml 里, 但**源码中并无对应的
+#     param 读取**, 调整不会有任何效果。已核实(grep 全部 5 个包):
+#       bspline/limit_vel, bspline/limit_acc, bspline/limit_ratio
+#           -> limit_vel_/limit_acc_ 实际由 UniformBspline::setPhysicalLimits()
+#              在代码里从 manager/max_vel、manager/max_acc 设定
+#              (bspline_opt/src/uniform_bspline.cpp:130)
+#       fsm/yaw_error_max, fsm/w_adjust
+#       MPC/v_max, MPC/w_max, MPC/omega0, MPC/omega1
+#           -> mpc_controller 包已 CATKIN_IGNORE, 实车不编译
+#     要调限速请改 tuning_base.max_vel, 不要去找 bspline/limit_vel。
+# =============================================================================

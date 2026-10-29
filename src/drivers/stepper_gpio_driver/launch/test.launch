@@ -1,0 +1,25 @@
+<launch>
+  <arg name="test_pulses" default="5"/>
+  <arg name="test_frequency_hz" default="100.0"/>
+  <arg name="test_direction" default="1"/>
+  <arg name="test_delay_s" default="2.0"/>
+  <arg name="invert_direction" default="false"/>
+  <arg name="dry_run" default="false"/>
+
+  <node pkg="stepper_gpio_driver" type="stepper_gpio_node" name="stepper_gpio" output="screen" required="true">
+    <param name="pulse_gpio_path" value="/sys/class/tz_gpio/gpio-output_1/value"/>
+    <param name="direction_gpio_path" value="/sys/class/tz_gpio/gpio-output_2/value"/>
+    <param name="invert_direction" value="$(arg invert_direction)"/>
+    <param name="dry_run" value="$(arg dry_run)"/>
+    <param name="test_mode" value="true"/>
+    <param name="test_on_start" value="true"/>
+    <param name="test_pulses" value="$(arg test_pulses)"/>
+    <param name="test_frequency_hz" value="$(arg test_frequency_hz)"/>
+    <param name="test_direction" value="$(arg test_direction)"/>
+    <param name="test_delay_s" value="$(arg test_delay_s)"/>
+    <param name="min_frequency_hz" value="100.0"/>
+    <param name="max_frequency_hz" value="20000.0"/>
+    <param name="direction_setup_us" value="1000"/>
+  </node>
+</launch>
+

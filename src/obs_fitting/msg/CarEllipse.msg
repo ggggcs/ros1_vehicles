@@ -1,0 +1,12 @@
+int32 id
+float64 center_x
+float64 center_y
+float64 width
+float64 height
+float64 angle
+float64 A
+float64 B
+float64 C
+float64 D
+float64 E
+float64 F

@@ -1,0 +1,39 @@
+<launch>
+  <!-- ============================================================
+       一键启动: Gazebo 仿真环境 + 完整导航算法栈
+       (注意: XML 注释内不能出现连续两个连字符, 故分隔线用等号)
+       ============================================================
+       包含:
+         1. ackermann_vehicle_base.launch  — Gazebo 车辆仿真 (ackermann_controller
+            + cmd_vel_to_ackermann_drive 转换)
+         2. slam_navigation.launch         — LIO-SAM SLAM + Patchwork++ 地面分割
+            + EGO-Planner (B-spline 避障规划) + teb_tracking (TEB 闭环跟踪)
+            + RViz
+       用法:
+         roslaunch ego_planner one_click_simulation.launch
+         roslaunch ego_planner one_click_simulation.launch gui:=false   # 无界面
+         roslaunch ego_planner one_click_simulation.launch world_name:=$(find ackermann_vehicle_gazebo)/worlds/parking_lot.world
+       启动后 (gazebo 就绪约需 1-3 分钟):
+         - RViz 中发布 2D Nav Goal 设定终点
+         - 观察 /teb_tracking/local_traj (TEB 优化轨迹) 与 /cmd_vel
+       ============================================================ -->
+
+  <!-- 常用参数 -->
+  <arg name="gui" default="true"/>   <!-- gazebo 图形界面 -->
+  <arg name="world_name" default="$(find ackermann_vehicle_gazebo)/worlds/sim_world.world"/>
+  <arg name="map_size_x" default="100.0"/>
+  <arg name="map_size_y" default="100.0"/>
+
+  <!-- ===== 1. 仿真环境 (车辆 + 控制器) ===== -->
+  <include file="$(find ackermann_vehicle_gazebo)/launch/ackermann_vehicle_base.launch">
+    <arg name="world_name" value="$(arg world_name)"/>
+    <arg name="gui" value="$(arg gui)"/>
+  </include>
+
+  <!-- ===== 2. 导航算法栈 (SLAM + 规划 + TEB 跟踪 + RViz) ===== -->
+  <include file="$(find ego_planner)/launch/slam_navigation.launch">
+    <arg name="map_size_x" value="$(arg map_size_x)"/>
+    <arg name="map_size_y" value="$(arg map_size_y)"/>
+  </include>
+
+</launch>

@@ -1,0 +1,35 @@
+<launch>
+  <!-- Real Robot Control Configuration -->
+  <!-- For real robot, assume hardware drivers are already running -->
+
+  <arg name="enable_ekf" default="$(optenv ENABLE_EKF true)"/>
+
+  <!-- EKF Localization for sensor fusion (if needed) -->
+  <group if="$(arg enable_ekf)" >
+    <node pkg="robot_localization" type="ekf_localization_node" name="ekf_localization">
+      <rosparam command="load" file="$(find me5413_world)/config/robot_localization.yaml" />
+    </node>
+
+    <group if="$(optenv JACKAL_IMU_MICROSTRAIN 0)">
+      <!-- Optionally load the configuration for the Microstrain-family IMU -->
+      <rosparam>
+        ekf_localization:
+          imu1: microstrain/imu/data
+          imu1_config: [false, false, false,
+                      true, true, true,
+                      false, false, false,
+                      true, true, true,
+                      false, false, false]
+          imu1_differential: false
+      </rosparam>
+      <param name="ekf_localization/imu1" value="$(optenv JACKAL_IMU_MICROSTRAIN_NAME microstrain)/imu/data"/>
+    </group>
+  </group>
+
+  <!-- Note: For real robot -->
+  <!-- - Controller manager should be running on robot hardware -->
+  <!-- - Twist mux should be running on robot hardware -->
+  <!-- - Joint state publisher should be running on robot hardware -->
+  <!-- These launch files only start the navigation stack components -->
+
+</launch>

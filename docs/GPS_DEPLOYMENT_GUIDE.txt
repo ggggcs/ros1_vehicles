@@ -1,0 +1,196 @@
+GPS定位系统迁移 - 现场部署指南
+════════════════════════════════════════════════════════════════════════════
+
+📋 一、启动前检查清单
+
+□ 1. 硬件连接
+   □ GPS天线已连接并固定
+   □ 激光雷达电源正常
+   □ 车载电脑供电稳定
+   
+□ 2. 传感器标定参数
+   □ 测量GPS天线到激光雷达的距离 (x, y, z)
+   □ 确认激光雷达安装方向
+   □ 记录车辆中心到GPS天线的偏移
+
+□ 3. 软件环境
+   □ 代码已编译: catkin_make
+   □ 环境已配置: source devel/setup.bash
+
+
+🔧 二、关键参数配置
+
+1. 激光雷达到车体的TF变换 (launch文件第25行)
+   当前值: args="0.0 0.0 0.5 0 0 0"
+   
+   ⚠️ 必须根据实际测量修改！
+   
+   测量方法:
+   - x: GPS天线到激光雷达的前后距离（前为正）
+   - y: GPS天线到激光雷达的左右距离（左为正）  
+   - z: GPS天线到激光雷达的上下距离（上为正）
+   - roll, pitch, yaw: 激光雷达的旋转角度（弧度）
+
+   修改文件:
+   vi src/obs_void/bringup/launch/circular_path_navigation_gps_real.launch
+
+2. 路径规划参数
+   文件: src/obs_void/bringup/param/vector_field_planner_params.yaml
+   
+   关键参数:
+   - circle_center_x: 圆形路径中心X坐标 (相对初始位置)
+   - circle_center_y: 圆形路径中心Y坐标
+   - circle_radius: 圆形路径半径
+   - max_speed: 最大速度
+
+
+🚀 三、启动步骤
+
+1. 启动系统
+   cd ~/workspace/ros1_vehicles
+   source devel/setup.bash
+   roslaunch bringup circular_path_navigation_gps_real.launch
+
+2. 等待初始化（重要！）
+   系统启动后会显示:
+   "Waiting for first odom message to set origin..."
+   
+   ⚠️ 确保车辆静止在平坦地面上，等待出现:
+   "Origin set to: x=XXX, y=XXX, z=XXX"
+   
+   此时的GPS位置会被设为坐标原点(0,0)
+
+3. 检查系统状态
+   新开终端运行:
+   cd ~/workspace/ros1_vehicles
+   ./scripts/check_gps_system.sh
+
+
+📊 四、实时监控
+
+1. 查看TF树
+   rosrun rqt_tf_tree rqt_tf_tree
+   
+   应该看到完整的链路:
+   odom -> base_link -> velodyne -> car_baselink
+
+2. 监控关键话题
+   # GPS原始数据
+   rostopic echo /AIMhc_UGV1/odom
+   
+   # 相对原点的位置
+   rostopic echo /odom
+   
+   # 障碍物检测
+   rostopic echo /obs_fitting/ellipse_equations
+   
+   # 控制指令
+   rostopic echo /cmd_vel
+
+3. RViz可视化
+   - Fixed Frame 必须设置为 "odom"
+   - 添加话题:
+     • /vector_field_planner/local_plan (Path)
+     • /vector_field_planner/obstacle_boundaries (MarkerArray)
+     • /vector_field_planner/circle_path (Marker)
+     • /obs_fitting/clustered_cloud (PointCloud2)
+
+
+🐛 五、常见问题排查
+
+问题1: TF查询失败
+症状: 日志显示 "TF转换失败 (velodyne->odom)"
+原因: TF链不完整
+解决:
+   1. 检查odom_relative_node是否收到GPS数据
+      rostopic hz /AIMhc_UGV1/odom
+   2. 确认静态TF发布器运行正常
+      rosnode list | grep static_transform_publisher
+   3. 查看完整TF树
+      rosrun tf view_frames && evince frames.pdf
+
+问题2: 障碍物检测无输出
+症状: /obs_fitting/ellipse_equations 无数据
+原因: 点云处理失败或TF异常
+解决:
+   1. 检查激光雷达数据
+      rostopic hz /hesai/pandar
+   2. 查看obs_fitting日志
+      rosnode info /main
+   3. 确认odom->velodyne的TF存在
+      rosrun tf tf_echo odom velodyne
+
+问题3: 车辆不动
+症状: /cmd_vel有数据但车不动
+原因: 控制接口未启动
+解决:
+   1. 检查车辆控制节点状态
+   2. 验证底盘通信
+   3. 确认使能开关已打开
+
+问题4: GPS漂移
+症状: 车辆位置突然跳变
+原因: GPS信号质量差
+解决:
+   1. 移动到开阔区域
+   2. 检查GPS天线连接
+   3. 等待GPS锁定更多卫星
+   4. 考虑使用RTK GPS
+
+
+🎯 六、性能优化建议
+
+1. GPS更新频率
+   - 确认GPS输出频率 >= 10Hz
+   - 如果频率低，调整GPS驱动参数
+
+2. 障碍物检测范围
+   修改 src/obs_fitting/src/main.cpp:
+   #define FRONT_AREA -5.0f  // 前方检测距离
+   #define LEFT_AREA 2.0f    // 左侧检测距离
+   #define RIGHT_AREA -2.0f  // 右侧检测距离
+
+3. 控制频率
+   修改 src/obs_void/bringup/param/vector_field_planner_params.yaml:
+   control_rate: 50.0  # 提高控制频率
+
+
+⚠️ 七、安全注意事项
+
+1. 首次测试
+   □ 在空旷安全区域测试
+   □ 准备紧急停止按钮
+   □ 低速模式运行 (max_speed: 0.5)
+   □ 有人随时准备接管
+
+2. GPS初始化
+   □ 车辆完全静止
+   □ 等待"Origin set"消息
+   □ 确认周围无移动障碍物
+
+3. 避障测试
+   □ 从简单场景开始
+   □ 逐步增加障碍物复杂度
+   □ 验证紧急停止功能
+
+4. 长时间运行
+   □ 监控GPS信号质量
+   □ 注意温度和电量
+   □ 定期检查传感器状态
+
+
+📝 八、日志记录
+
+启动时记录:
+- 日期时间: _______________
+- GPS初始坐标: (______, ______, ______)
+- base_link->velodyne参数: _______________
+- 测试环境: _______________
+- 出现问题: _______________
+- 解决方案: _______________
+
+
+════════════════════════════════════════════════════════════════════════════
+最后更新: 2025-12-15
+版本: GPS定位系统 v1.0
+════════════════════════════════════════════════════════════════════════════

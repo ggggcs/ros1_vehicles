@@ -1,0 +1,21 @@
+<launch>
+  <arg name="pulses_per_revolution" default="200"/>
+  <arg name="gear_ratio" default="1.0"/>
+  <arg name="invert_direction" default="false"/>
+  <arg name="dry_run" default="false"/>
+
+  <node pkg="stepper_gpio_driver" type="stepper_gpio_node" name="stepper_gpio" output="screen" required="true">
+    <param name="pulse_gpio_path" value="/sys/class/tz_gpio/gpio-output_1/value"/>
+    <param name="direction_gpio_path" value="/sys/class/tz_gpio/gpio-output_2/value"/>
+    <param name="pulses_per_revolution" value="$(arg pulses_per_revolution)"/>
+    <param name="gear_ratio" value="$(arg gear_ratio)"/>
+    <param name="invert_direction" value="$(arg invert_direction)"/>
+    <param name="dry_run" value="$(arg dry_run)"/>
+    <param name="test_mode" value="false"/>
+    <param name="min_frequency_hz" value="100.0"/>
+    <param name="max_frequency_hz" value="20000.0"/>
+    <param name="direction_setup_us" value="1000"/>
+    <param name="max_command_pulses" value="1000000"/>
+  </node>
+</launch>
+

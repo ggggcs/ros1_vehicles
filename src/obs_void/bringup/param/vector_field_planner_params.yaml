@@ -1,0 +1,75 @@
+# 向量场规划器参数配置
+
+# ========== 路径定义 ==========
+path_type: 'line'   # 路径类型: 'circle' (圆形), 'line' (直线), 'figure8' (8字形)
+
+# 圆形路径参数 (隐式函数: (x-cx)^2 + (y-cy)^2 = R^2)
+circle_center_x: 0.0  # 圆心X坐标 (米) k=0.1 0.5
+circle_center_y: 0.0  # 圆心Y坐标 (米)
+circle_radius: 4.0    # 圆半径 (米)
+circle_direction: 'ccw'  # 运动方向: 'ccw' (逆时针) 或 'cw' (顺时针)
+
+# 线段路径参数 (有限线段)
+line_start_x: 0.0    # 线段起点X坐标 (米)
+line_start_y: 0.0     # 线段起点Y坐标 (米)
+line_end_x: 0 #20.0       # 线段终点X坐标 (米)
+line_end_y: -20 #-0.62    # 线段终点Y坐标 (米)
+line_direction: 'forward'  # 运动方向: 'forward' (从起点到终点) 或 'backward' (从终点到起点)
+
+# 8字形路径参数 (隐式函数: (x^2 + y^2)^2 = a^2(x^2 - y^2))
+figure8_scale: 3.0    # 8字形大小缩放系数 (米)
+figure8_direction: 'ccw'  # 运动方向: 'ccw' (逆时针) 或 'cw' (顺时针)
+
+# ========== 向量场增益 ==========
+k_p: 1.0      # 路径跟踪增益
+k_r: 1.0  # 反应向量场增益
+
+# Bump函数参数（基于论文公式）
+l1: 0.3               # f₁函数的衰减率参数 - 控制⊔Q从0到1的过渡陡峭程度
+l2: 0.3               # f₂函数的增长率参数 - 控制⊓R从1到0的过渡陡峭程度
+c: -1.1               # 排斥边界常数 - 定义排斥区域HQ的边界（通常设为0）
+bump_transition_width: 10.0  # 保留用于兼容性（已弃用，不再使用）
+
+# 边界偏移量 (相对于障碍物边界)
+repulsive_offset: 0.8 # 排斥边界偏移 (米)  1
+reactive_offset: 1.8  # 响应边界偏移 (米)
+
+# 控制参数
+max_speed: 0.6  # 最大速度 (m/s)
+control_rate: 100.0 # 控制频率 (Hz)    22  
+goal_tolerance: 0.4   # 目标点容差 (米)
+lookahead_distance: 0.85 # 前瞻距离 (米) - 从车身中心到车头位置的距离，用于获取向量场方向
+record_distance: true # 是否记录位姿距期望路径距离
+
+# 阿克曼模型参数
+wheelbase: 0.66     # 轴距 (米) - 必须与URDF一致
+max_steering_angle: 0.7  # 最大舵机角度 (弧度) ≈ 28.6度，适合实际车辆
+steering_gain: 1    # 舵机增益 - 控制转向响应速度，降低避免过度转向
+# min_turning_radius将自动计算为: wheelbase / tan(max_steering_angle)
+# 或者可以手动设置来覆盖自动计算的值（例如考虑车辆实际限制）
+min_turning_radius: 1.7  # 最小转弯半径 (米)
+
+# 向量场计算和可视化参数
+field_center_x: 0.0     # 向量场固定中心X坐标 (map坐标系)
+field_center_y: 0.0     # 向量场固定中心Y坐标 (map坐标系)
+field_range: 15        # 向量场计算和显示范围 (米) - 从固定中心点计算的正方形区域
+field_resolution: 0.3 #  向量场网格分辨率/箭头间距 (米) - 值越小密度越大，建议0.3-1.0
+viz_frequency: 10 # 可视化更新频率 (Hz)
+
+# 局部路径生成参数
+local_path_length: 3.0  # 局部路径长度 (米) - 沿向量场积分的距离
+local_path_step: 0.1 # 路径积分步长 (米) - 值越小路径越平滑
+
+# ========== 障碍物管理模块参数 ==========
+# 用于补偿传感器盲区导致的感知数据丢失
+obstacle_association_threshold: 0.5  # 数据关联距离阈值 D_threshold (米) - 判断同一障碍物的空间范围
+obstacle_duration_time: 5.0          # 障碍物保留时间 (秒) - 超过此时间未更新的障碍物将被删除
+
+# 障碍物融合参数
+merge_overlap_boundary: 'repulsive'  # 融合重叠检测使用的边界类型: 'physical' (物理边界), 'repulsive' (排斥边界), 'reactive' (反应边界)
+                                      # - physical: 使用障碍物的原始物理尺寸，融合最保守
+                                      # - repulsive: 使用排斥边界，融合适中（推荐）
+                                      # - reactive: 使用反应边界，融合最激进
+
+# ========== 避障策略 ==========
+# 统一采用逆时针方向绕行障碍物

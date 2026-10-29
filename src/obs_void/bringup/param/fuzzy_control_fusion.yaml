@@ -1,0 +1,25 @@
+# Fuzzy Control Parameters for Ultrasonic Obstacle Avoidance
+# Distance thresholds (meters)
+front_area_safe: 0.7
+front_area_danger: 0.3 
+slope_area_safe: 0.2
+slope_area_danger: 0.1
+side_area_safe: 0.15
+side_area_danger: 0.1
+
+# Risk thresholds (normalized 0-1)
+risk_safe: 0.3
+risk_warning: 0.5
+risk_danger: 0.9
+
+# Fuzzy control output values (degrees)
+#NB: -8.0  # Negative Big
+#NR: -4.0  # Negative
+#ZE: 0.0   # Zero
+#PL: 4.0   # Positive
+#PB: 8.0   # Positive Big
+NB: -30.0  # Negative Big
+NR: -15.0  # Negative
+ZE: 0.0   # Zero
+PL: 15.0   # Positive
+PB: 30.0   # Positive Big22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222223``````````````````22```23```````````````23223`232

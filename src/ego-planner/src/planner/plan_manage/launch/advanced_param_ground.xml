@@ -1,0 +1,102 @@
+<launch>
+  <arg name="map_size_x_" default="100.0"/>
+  <arg name="map_size_y_" default="100.0"/>
+  <arg name="map_size_z_" default="3.0"/>
+
+  <arg name="odometry_topic" default="/legOdom"/>
+  <arg name="cloud_topic" default="/velodyne_points"/>
+  <arg name="segmented_cloud_topic" default="/patchworkpp/nonground"/>
+
+  <arg name="max_vel" default="2.5"/>
+  <arg name="max_acc" default="0.6"/>
+  <arg name="planning_horizon" default="5.0"/>
+
+  <arg name="flight_type" default="1"/>  <!-- 1=manual(RViz goal), 2=preset waypoints -->
+  <arg name="localization_mode" default="1"/>  <!-- 0=SLAM, 1=ground truth -->
+  <arg name="map_type" default="1"/>  <!-- 1=PLANNING, 2=EXPLORATION -->
+  <arg name="map_frame" default="world"/>  <!-- world for sim, map for SLAM -->
+
+  <!-- main node -->
+  <node pkg="ego_planner" name="ego_planner_node" type="ego_planner_node" output="screen">
+    <remap from="/odom_world" to="$(arg odometry_topic)"/>
+    <remap from="/grid_map/odom" to="$(arg odometry_topic)"/>
+    <remap from="/grid_map/cloud" to="$(arg cloud_topic)"/>
+    <remap from="/grid_map/segmented_cloud" to="$(arg segmented_cloud_topic)"/>
+
+    <!-- planning fsm -->
+    <param name="fsm/flight_type" value="$(arg flight_type)" type="int"/>
+    <param name="fsm/localization_mode" value="$(arg localization_mode)" type="int"/>
+    <!-- Ground vehicle: 0.3m < one FSM period of travel (0.5s * 2m/s = 1m),
+         so it degenerates to replanning every cycle. 1.5m gives a stable
+         execution segment (~0.75s at 2m/s) between replans. -->
+    <param name="fsm/thresh_replan" value="1.5" type="double"/>
+    <param name="fsm/thresh_no_replan" value="0.1" type="double"/>
+    <param name="fsm/planning_horizon" value="$(arg planning_horizon)" type="double"/>
+    <param name="fsm/planning_horizen_time" value="2" type="double"/>
+    <param name="fsm/emergency_time_" value="1.0" type="double"/>
+    <param name="fsm/yaw_error_max" value="0.436" type="double"/>  <!-- 25 deg -->
+    <param name="fsm/w_adjust" value="0.5" type="double"/>
+
+    <param name="fsm/waypoint_num" value="0" type="int"/>
+
+    <!-- grid map -->
+    <param name="grid_map/resolution" value="0.1"/>
+    <param name="grid_map/map_size_x" value="$(arg map_size_x_)"/>
+    <param name="grid_map/map_size_y" value="$(arg map_size_y_)"/>
+    <param name="grid_map/map_size_z" value="$(arg map_size_z_)"/>
+    <param name="grid_map/local_update_range_x" value="4"/>
+    <param name="grid_map/local_update_range_y" value="4"/>
+    <param name="grid_map/local_update_range_z" value="1"/>
+    <param name="grid_map/obstacles_inflation" value="0.5"/>
+    <param name="grid_map/obstacles_inflation2d" value="0.5"/>
+    <param name="grid_map/local_map_margin" value="10"/>
+    <param name="grid_map/ground_height" value="-0.01"/>
+    <param name="grid_map/map_type" value="$(arg map_type)" type="int"/>
+    <param name="grid_map/frame_id" value="$(arg map_frame)"/>
+    <param name="grid_map/pose_type" value="2"/>
+    <param name="grid_map/show_occ_time" value="false"/>
+
+    <param name="grid_map/p_hit" value="0.65" type="double"/>
+    <param name="grid_map/p_miss" value="0.35" type="double"/>
+    <param name="grid_map/p_min" value="0.12" type="double"/>
+    <param name="grid_map/p_max" value="0.90" type="double"/>
+    <param name="grid_map/p_occ" value="0.80" type="double"/>
+    <param name="grid_map/min_ray_length" value="0.1" type="double"/>
+    <param name="grid_map/max_ray_length" value="5.0" type="double"/>
+
+    <!-- camera parameters (unused for LiDAR mode) -->
+    <param name="grid_map/cx" value="321.0" type="double"/>
+    <param name="grid_map/cy" value="243.0" type="double"/>
+    <param name="grid_map/fx" value="387.0" type="double"/>
+    <param name="grid_map/fy" value="387.0" type="double"/>
+    <param name="grid_map/use_depth_filter" value="false"/>
+    <param name="grid_map/skip_pixel" value="2"/>
+
+    <!-- planner manager -->
+    <param name="manager/max_vel" value="$(arg max_vel)" type="double"/>
+    <param name="manager/max_acc" value="$(arg max_acc)" type="double"/>
+    <param name="manager/max_jerk" value="4" type="double"/>
+    <param name="manager/control_points_distance" value="0.4" type="double"/>
+    <param name="manager/feasibility_tolerance" value="0.05" type="double"/>
+    <param name="manager/planning_horizon" value="$(arg planning_horizon)" type="double"/>
+
+    <!-- trajectory optimization -->
+    <param name="optimization/lambda_smooth" value="1.0" type="double"/>
+    <param name="optimization/lambda_collision" value="0.65" type="double"/>
+    <param name="optimization/lambda_feasibility" value="0.2" type="double"/>
+    <param name="optimization/lambda_fitness" value="1.0" type="double"/>
+    <param name="optimization/dist0" value="0.5" type="double"/>
+    <param name="optimization/max_vel" value="$(arg max_vel)" type="double"/>
+    <param name="optimization/max_acc" value="$(arg max_acc)" type="double"/>
+
+    <param name="bspline/limit_vel" value="$(arg max_vel)" type="double"/>
+    <param name="bspline/limit_acc" value="$(arg max_acc)" type="double"/>
+    <param name="bspline/limit_ratio" value="1.1" type="double"/>
+
+    <!-- MPC parameters -->
+    <param name="MPC/v_max" value="2.0" type="double"/>
+    <param name="MPC/w_max" value="1.2" type="double"/>
+    <param name="MPC/omega0" value="1.0" type="double"/>
+    <param name="MPC/omega1" value="0.1" type="double"/>
+  </node>
+</launch>

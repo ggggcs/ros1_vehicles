@@ -1,0 +1,82 @@
+<launch>
+  <!-- =========================================== -->
+  <!--              实车导航核心配置                 -->
+  <!-- =========================================== -->
+
+  <!-- 0. 机器人描述（URDF模型 - 仅用于可视化） -->
+  <include file="$(find me5413_world)/launch/include/real_robot_description.launch"/>
+  
+  <!-- 0.1 实车控制配置（EKF等，不包含controller_manager和twist_mux） -->
+  <include file="$(find me5413_world)/launch/include/real_robot_control.launch"/>
+  
+  <!-- 1. Odom TF发布器（包含UTM坐标转换） -->
+  <!-- ⚠️ 如果RTK输出UTM大坐标，需要设置原点进行转换 -->
+  <arg name="use_utm_conversion" default="true"/>          <!-- 是否启用UTM转换 -->
+  <arg name="utm_origin_x" default="683576.5653"/>         <!-- 建图起点UTM X坐标 -->
+  <arg name="utm_origin_y" default="3123046.3857"/>        <!-- 建图起点UTM Y坐标 -->
+  
+  <node pkg="me5413_world" type="odom_tf_publisher.py" name="odom_tf_publisher" output="screen">
+    <param name="use_utm_conversion" value="$(arg use_utm_conversion)"/>
+    <param name="utm_origin_x" value="$(arg utm_origin_x)"/>
+    <param name="utm_origin_y" value="$(arg utm_origin_y)"/>
+  </node>
+
+  <!-- 2. 地图服务器（使用实车环境地图） -->
+  <arg name="map_file" default="$(find me5413_world)/maps/map.yaml"/>
+  
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)">
+    <param name="frame_id" value="map"/>
+  </node>
+
+  <!-- ========== RTK定位配置（替代AMCL） ========== -->
+  <!-- ⚠️ 坐标系说明：
+       情况A（局部坐标）：RTK直接输出相对于建图起点的坐标（几米到几百米）
+                         → 设置 use_utm_conversion=false, map_origin=0
+       
+       情况B（UTM坐标）：RTK输出UTM/地心绝对坐标（68万米这样的大数值）
+                        → 设置 use_utm_conversion=true, utm_origin=建图起点坐标
+                        → odom_tf_publisher会自动转换为局部坐标
+                        → map_origin保持为0即可
+  -->
+  <arg name="map_origin_x" default="0.0"/>        <!-- 地图原点相对偏移X（通常为0） -->
+  <arg name="map_origin_y" default="0.0"/>        <!-- 地图原点相对偏移Y（通常为0） -->
+  <arg name="map_origin_yaw" default="0.0"/>      <!-- 朝向偏移（弧度），需要标定 -->
+  
+  <!-- ⚠️ 核心：发布静态 map->odom 变换 -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom"
+        args="$(arg map_origin_x) $(arg map_origin_y) 0 0 0 $(arg map_origin_yaw) map odom"/>
+  
+  <!-- 说明：
+       1. odom->base_link 由odom_tf_publisher.py发布（已包含UTM转换）
+       2. map->odom 由上面的static_transform_publisher发布（通常为零偏移）
+       3. 完整TF链：map -> odom(局部坐标) -> base_link
+       4. 朝向标定：rosrun me5413_world check_yaw.py
+  -->
+
+  <!-- ========== AMCL定位（已禁用，使用RTK代替） ========== -->
+  <!-- <arg name="initial_pose_x" default="0.0"/>
+  <arg name="initial_pose_y" default="0.0"/>
+  <arg name="initial_pose_a" default="0.0"/>
+  <include file="$(find me5413_world)/launch/real_amcl.launch">
+    <arg name="initial_pose_x" value="$(arg initial_pose_x)" />
+    <arg name="initial_pose_y" value="$(arg initial_pose_y)" />
+    <arg name="initial_pose_a" value="$(arg initial_pose_a)" />
+  </include> -->
+
+  <!-- 3. Move Base路径规划（实车优化版） -->
+  <include file="$(find me5413_world)/launch/real_move_base_teb.launch" />
+
+  <!-- 4. RViz可视化（实车调试专用） -->
+  <!-- 延迟启动RViz，等待TF树建立 -->
+  <node type="rviz" name="rviz" pkg="rviz" 
+        args="-d $(find me5413_world)/rviz/real_navigation.rviz" 
+        output="log" respawn="true" launch-prefix="bash -c 'sleep 3; $0 $@' "/>
+
+  <!-- 5. 目标发布节点 -->
+  <node ns="me5413_world" pkg="me5413_world" type="goal_publisher_node" 
+        name="goal_publisher_node" output="screen">
+    <param name="position_tolerance" value="0.15" />
+    <param name="angle_tolerance" value="0.15" />
+  </node>
+
+</launch>

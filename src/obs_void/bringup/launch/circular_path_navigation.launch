@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- ==================== 参数配置 ==================== -->
+    <arg name="use_sim_time" default="true"/>
+    <param name="use_sim_time" value="$(arg use_sim_time)"/>
+    
+    <!-- ==================== 1. 启动Gazebo仿真环境和小车 ==================== -->
+    <include file="$(find bringup)/launch/gazebo/racecar.launch">
+        <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    </include>
+    
+    <!-- ==================== 2. 启动LIO-SAM建图与定位 ==================== -->
+    <rosparam file="$(find lio_sam)/config/params.yaml" command="load" />
+    <include file="$(find lio_sam)/launch/include/module_loam.launch" />
+    
+    <!-- ==================== 3. 启动障碍物检测与拟合 ==================== -->
+    <include file="$(find obs_fitting)/launch/obs_fitting.launch" />
+    
+    <!-- ==================== 4. 圆形路径发布器 (替代全局规划器) ==================== -->
+    <node name="circular_path_publisher" pkg="bringup" type="circular_path_publisher.py" output="screen">
+        <rosparam file="$(find bringup)/param/circular_path_params.yaml" command="load"/>
+    </node>
+    
+    <!-- ==================== 5. 启动向量场局部规划器 ==================== -->
+    <node name="vector_field_planner" pkg="bringup" type="vector_field_planner.py" output="screen">
+        <rosparam file="$(find bringup)/param/vector_field_planner_params.yaml" command="load"/>
+    </node>
+    
+    <!-- ==================== 6. 导航接口节点 ==================== -->
+    <node name="nav_sim" pkg="racecar_description" type="nav_sim.py" output="screen"/>
+    
+    <!-- ==================== 7. 可视化 ==================== -->
+    <node name="rviz" pkg="rviz" type="rviz" 
+          args="-d $(find bringup)/rviz/lio_sam_navigation.rviz" required="false"/>
+    
+    <!-- ==================== 说明 ==================== -->
+    <!--
+    简化向量场导航架构 (无全局规划器):
+    
+    1. 路径生成: circular_path_publisher (圆形路径)
+       - 输出: 圆形路径 /move_base/NavfnROS/plan
+       - 参数: 圆心、半径、方向等
+    
+    2. 局部规划: 向量场规划器
+       - 输入: 
+         * 圆形路径 (从circular_path_publisher)
+         * 障碍物椭圆 (从obs_fitting)
+         * 当前位置 (从LIO-SAM里程计)
+       - 输出: 速度命令 /cmd_vel
+       - 方法: 引导向量场避障
+    
+    3. 控制: nav_sim.py
+       - 将/cmd_vel转换为Ackermann命令
+    
+    优势:
+    - 移除了move_base和全局规划器，架构更简单
+    - 圆形路径易于调试和可视化
+    - 向量场局部规划保持不变，平滑且适合动态避障
+    - 障碍物用拟合椭圆表示，更精确
+    
+    调整参数:
+    - 修改 circular_path_params.yaml 调整圆形路径
+    - 修改 vector_field_planner_params.yaml 调整向量场行为
+    -->
+    
+</launch>

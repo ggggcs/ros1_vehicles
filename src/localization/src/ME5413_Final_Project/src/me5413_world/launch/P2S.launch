@@ -1,0 +1,44 @@
+
+<launch>
+  <!-- ========================================== -->
+  <!--     3D点云转2D激光扫描 (PointCloud2 to LaserScan)     -->
+  <!-- ========================================== -->
+  
+  <!-- 1. 发布传感器TF变换（关键！） -->
+  <!-- 根据实际的雷达安装位置调整 x y z roll pitch yaw -->
+  <node pkg="tf" type="static_transform_publisher" name="base_to_velodyne"
+        args="0.2 0.0 0.3 0 0 0 base_link velodyne 100"/>
+  
+  <!-- 2. 点云转激光扫描节点 -->
+  <node pkg="pointcloud_to_laserscan" type="pointcloud_to_laserscan_node" 
+        name="pointcloud_to_laserscan" output="screen">
+    
+    <!-- 输入点云话题 -->
+    <remap from="cloud_in" to="/velodyne_points"/>
+    
+    <!-- 输出激光扫描话题 -->
+    <remap from="scan" to="/scan"/>
+    
+    <!-- ⚠️ 关键参数配置 -->
+    <param name="target_frame" value="base_link"/>  <!-- 目标坐标系 -->
+    <param name="transform_tolerance" value="0.1"/>  <!-- 增加容差，避免TF超时 -->
+    
+    <!-- 高度过滤（提取水平切片） -->
+    <param name="min_height" value="-0.3"/>   <!-- 过滤地面，根据雷达高度调整 -->
+    <param name="max_height" value="0.8"/>    <!-- 过滤过高点，保留障碍物 -->
+    
+    <!-- 角度范围 -->
+    <param name="angle_min" value="-3.14159"/> <!-- -180度 -->
+    <param name="angle_max" value="3.14159"/>  <!-- +180度 -->
+    <param name="angle_increment" value="0.00872"/> <!-- 0.5度分辨率 (720线) -->
+    
+    <!-- 距离范围 -->
+    <param name="range_min" value="0.3"/>     <!-- 最小距离，避免噪点 -->
+    <param name="range_max" value="30.0"/>    <!-- 最大距离 -->
+    
+    <!-- 其他参数 -->
+    <param name="scan_time" value="0.1"/>     <!-- 扫描时间 -->
+    <param name="use_inf" value="true"/>      <!-- 使用无穷大表示无效点 -->
+    <param name="concurrency_level" value="1"/>
+  </node>
+</launch>

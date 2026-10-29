@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>airport_clamp_driver</name>
+  <version>0.1.0</version>
+  <description>ROS1 TCP driver for the dual-axis STM32 airport clamp.</description>
+  <maintainer email="nvidia@example.com">nvidia</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_generation</build_depend>
+  <depend>rospy</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <exec_depend>message_runtime</exec_depend>
+  <export/>
+</package>

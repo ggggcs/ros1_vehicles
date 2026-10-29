@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- ==================== 参数配置 ==================== -->
+    <arg name="use_sim_time" default="true"/>
+    <param name="use_sim_time" value="$(arg use_sim_time)"/>
+    
+    <!-- ==================== 1. 启动Gazebo仿真环境和小车 ==================== -->
+    <include file="$(find bringup)/launch/gazebo/racecar.launch">
+        <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    </include>
+    
+    <!-- ==================== 2. 启动LIO-SAM建图与定位 ==================== -->
+    <rosparam file="$(find lio_sam)/config/params.yaml" command="load" />
+    <include file="$(find lio_sam)/launch/include/module_loam.launch" />
+    
+    <!-- ==================== 2.5 TF转换配置 ==================== -->
+    <!-- 
+    TF树结构: map -> odom -> base_link (-> base_footprint via URDF)
+    - LIO-SAM发布: map -> odom -> base_link
+    - robot_state_publisher (在racecar.launch中): 发布URDF中定义的所有静态TF
+    - base_footprint到base_link的关系已在racecar的URDF中定义
+    
+    注意：不需要额外的TF发布器，避免冲突
+    -->
+    
+    <!-- ==================== 3. 启动障碍物检测与拟合 ==================== -->
+    <include file="$(find obs_fitting)/launch/obs_fitting.launch" />
+    
+    <!-- ==================== 4. 启动move_base (只用于全局规划) ==================== -->
+    <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+        <!-- 全局代价地图配置 -->
+        <rosparam file="$(find bringup)/param/global_costmap_common_params.yaml" command="load" ns="global_costmap" /> 
+        <rosparam file="$(find bringup)/param/global_costmap_params_lio.yaml" command="load" /> 
+        
+        <!-- 局部代价地图配置 (用于全局规划器参考,不用于局部规划) -->
+        <rosparam file="$(find bringup)/param/local_costmap_common_params.yaml" command="load" ns="local_costmap" />
+        <rosparam file="$(find bringup)/param/local_costmap_params_lio.yaml" command="load" />
+        
+        <rosparam file="$(find bringup)/param/move_base_params.yaml" command="load" />
+        
+        <!-- 使用虚拟局部规划器 (实际由向量场规划器代替) -->
+        <param name="base_local_planner" value="base_local_planner/TrajectoryPlannerROS" />
+        
+        <!-- 降低控制器频率但不禁用,move_base需要控制循环来触发全局规划 -->
+        <param name="controller_frequency" value="5.0"/>
+        
+        <!-- 重映射cmd_vel避免冲突 -->
+        <remap from="cmd_vel" to="move_base/cmd_vel"/>
+    </node>
+    
+    <!-- ==================== 5. 启动向量场局部规划器 ==================== -->
+    <node name="vector_field_planner" pkg="bringup" type="vector_field_planner.py" output="screen">
+        <rosparam file="$(find bringup)/param/vector_field_planner_params.yaml" command="load"/>
+    </node>
+    
+    <!-- ==================== 6. 导航接口节点 ==================== -->
+    <node name="nav_sim" pkg="racecar_description" type="nav_sim.py" output="screen"/>
+    
+    <!-- ==================== 7. 可视化 ==================== -->
+    <node name="rviz" pkg="rviz" type="rviz" 
+          args="-d $(find bringup)/rviz/lio_sam_navigation.rviz" required="false"/>
+    
+    <!-- ==================== 说明 ==================== -->
+    <!--
+    向量场导航架构:
+    
+    1. 全局规划: move_base的navfn (A*算法)
+       - 输入: LIO-SAM全局代价地图
+       - 输出: 全局路径 /move_base/GlobalPlanner/plan
+    
+    2. 局部规划: 向量场规划器 (替代TEB)
+       - 输入: 
+         * 全局路径 (从move_base)
+         * 障碍物椭圆 (从obs_fitting)
+         * 当前位置 (从LIO-SAM里程计)
+       - 输出: 速度命令 /cmd_vel
+       - 方法: 引导向量场避障
+    
+    3. 控制: nav_sim.py
+       - 将/cmd_vel转换为Ackermann命令
+    
+    优势:
+    - 全局规划基于LIO-SAM稳定地图
+    - 局部避障使用向量场方法,平滑且适合动态环境
+    - 障碍物用拟合椭圆表示,更精确
+    -->
+    
+</launch>

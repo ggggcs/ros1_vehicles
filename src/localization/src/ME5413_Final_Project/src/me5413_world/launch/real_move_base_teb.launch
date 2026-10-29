@@ -1,0 +1,77 @@
+<launch>
+ 
+  <!-- 实车话题参数 -->
+  <arg name="cmd_vel_topic" default="/cmd_vel" />
+  <arg name="odom_topic" default="/odom" />
+  <arg name="scan_topic" default="/scan" />
+  
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+    
+    <!-- 代价地图配置 -->
+    <rosparam file="$(find me5413_world)/params/common_costmap_config.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find me5413_world)/params/common_costmap_config.yaml" command="load" ns="local_costmap" />
+    
+    <!-- 代价地图特定参数（建议创建实车专用版本） -->
+    <rosparam file="$(find me5413_world)/params/map_nav_params/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find me5413_world)/params/map_nav_params/global_costmap_params.yaml" command="load" />
+    
+    <!-- 禁止区域 -->
+    <rosparam file="$(find me5413_world)/params/prohibition_areas.yaml" command="load" ns="global_costmap/prohibition_layer" />
+    <rosparam file="$(find me5413_world)/params/prohibition_areas.yaml" command="load" ns="local_costmap/prohibition_layer" />
+
+    <!-- TEB规划器参数（实车优化） -->
+    <rosparam file="$(find me5413_world)/params/teb_planner/teb_planner_param.yaml" command="load" />
+    <rosparam file="$(find me5413_world)/params/teb_planner/costmap_converter_params.yaml" command="load" />
+
+    <!-- 规划器配置 -->
+    <param name="base_global_planner" value="global_planner/GlobalPlanner" />
+    <param name="planner_frequency" value="0.5" />  <!-- 降低全局规划频率 -->
+    <param name="planner_patience" value="5.0" />   <!-- 增加规划耐心时间 -->
+
+    <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS" />
+    <param name="controller_frequency" value="15.0" />  <!-- 提高控制频率 -->
+    <param name="controller_patience" value="3.0" />    <!-- 增加控制耐心时间 -->
+    
+    <!-- 恢复行为参数 -->
+    <param name="recovery_behavior_enabled" value="true" />
+    <param name="clearing_rotation_allowed" value="false" />  <!-- 实车慎用旋转清障 -->
+    <param name="conservative_reset_dist" value="1.0" />      <!-- 保守的重置距离 -->
+    
+    <!-- 代价地图参数 -->
+    <param name="global_costmap/rolling_window" value="false" />
+    <param name="local_costmap/rolling_window" value="true" />
+    <param name="local_costmap/update_frequency" value="5.0" />   <!-- 局部地图更新频率 -->
+    <param name="local_costmap/publish_frequency" value="2.0" />  <!-- 局部地图发布频率 -->
+    <param name="global_costmap/update_frequency" value="0.5" />  <!-- 全局地图更新频率 -->
+    <param name="global_costmap/publish_frequency" value="0.1" /> <!-- 全局地图发布频率 -->
+    
+    <!-- 话题重映射（实车适配） -->
+    <remap from="cmd_vel" to="$(arg cmd_vel_topic)" />
+    <remap from="odom" to="$(arg odom_topic)" />
+    <remap from="scan" to="$(arg scan_topic)" />
+    
+    <!-- 坐标系设置 -->
+    <param name="global_costmap/global_frame" value="map" />
+    <param name="global_costmap/robot_base_frame" value="base_link" />
+    <param name="global_costmap/update_frequency" value="0.5" />
+    <param name="global_costmap/static_map" value="true" />
+    
+    <param name="local_costmap/global_frame" value="odom" />
+    <param name="local_costmap/robot_base_frame" value="base_link" />
+    <param name="local_costmap/update_frequency" value="5.0" />
+    <param name="local_costmap/static_map" value="false" />
+    <param name="local_costmap/rolling_window" value="true" />
+    
+    <!-- 障碍物层配置 -->
+    <param name="local_costmap/obstacle_layer/scan/topic" value="$(arg scan_topic)" />
+    <param name="local_costmap/obstacle_layer/scan/sensor_frame" value="laser" />
+    <param name="local_costmap/obstacle_layer/max_obstacle_height" value="1.0" />
+    <param name="local_costmap/obstacle_layer/raytrace_range" value="3.0" />
+    <param name="local_costmap/obstacle_layer/obstacle_range" value="2.5" />
+    
+    <!-- 膨胀层配置（实车安全考虑） -->
+    <param name="local_costmap/inflation_layer/inflation_radius" value="0.3" />
+    <param name="global_costmap/inflation_layer/inflation_radius" value="0.5" />
+  </node>
+
+</launch>

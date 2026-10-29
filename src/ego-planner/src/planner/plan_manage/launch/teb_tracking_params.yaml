@@ -1,0 +1,101 @@
+# teb_tracking 参数 (TEB 闭环跟踪节点)
+# 设计依据:
+#  - 控制/路径处理参照 AgiBot-D1-EgoPlanner2D-TEB (机器狗): 20Hz, 最近点投影,
+#    0.1m 弧长离散, look_ahead_poses=3, limit_slope 斜率限制
+#  - TEB 权重参照该开源集成; 限速/加速度对齐 ego-planner (manager/max_vel=2.5, max_acc=0.6)
+#  - 阿克曼约束: min_turning_radius=0.4 (物理极限: 轮距0.335/tan(45deg)=0.335m, 留余量)
+#  - 倒车 (2026-08-01): TEB 官方 carlike 必须能倒车 (weight_kinematics_forward_drive
+#    对 min_turning_radius>0 无效) -> teb_tracking 用 NORMAL/REVERSE 状态机管理倒车:
+#    前向不可行时防抖进入 REVERSE, 有界倒车 (限速/退距/时长) + 后向安全门,
+#    超限发 /teb_tracking/stuck 请求 FSM 全局重规划 (FSM 倒车期间冻结轨迹时间)
+
+# ---- 话题 ----
+traj_topic: /planning/bspline
+odom_topic: /legOdom
+obstacle_topic: /patchworkpp/nonground
+cmd_topic: /cmd_vel
+frame_id: odom
+
+# ---- 控制循环 ----
+control_frequency: 20.0     # 同开源 50ms 周期
+odom_timeout: 0.5           # 里程计超时即停 (对齐 gazebo cmd_timeout)
+
+# ---- 路径采样与截取 ----
+bspline_time_step: 0.05     # B-spline 时间采样 (s)
+path_sample_step: 0.1       # 弧长离散间隔 (m), 同开源 discretize_trajectory
+lookahead_dist: 3.0         # TEB 前瞻窗口 (m)
+min_path_points: 3          # 剩余路径点数不足即停
+viapoint_sep: 0.3           # via-point 间隔 (m), 跟踪约束
+decel_dist: 3.0             # 剩余路径短于此距离时 TEB 减速到终点, 避免终点急刹超调
+
+# ---- 速度平滑 (斜率限制, 同开源 limit_slope) ----
+# 每周期变化量: 0.03 / 0.05s = 0.6 m/s^2, 与 teb/acc_lim 一致
+max_v_step: 0.03
+max_w_step: 0.03
+
+# ---- 倒车安全网 (v2.1, 狗式直通: TEB band 内自主倒车, 本节点只做保险杠级兜底) ----
+# 触发: TEB 输出倒车解即执行 (限速 teb/max_vel_x_backwards), 无状态机/无反向切片
+#       (v1 教训: EGO 每次重规划轨迹从车当前位置开始, 车后无路径可切,
+#       反向切片+REVERSE 状态机导致 no-room -> stuck -> 重规划风暴, 已废弃)
+# 兜底: 持续倒车 / 无法前进超时 -> 发 /teb_tracking/stuck -> FSM 从实际位姿重规划
+blocked_timeout: 3.0            # 无法前进 (plan 失败/倒车被后向障碍堵) 秒数, 超时请求重规划
+reverse_timeout: 8.0            # 持续执行倒车秒数, 超时请求重规划
+# v2.1: 安全门收紧到保险杠级 0.6m (≈teb/min_obstacle_dist 0.5 + 余量)。
+# 原因: 车头与路径夹角超过转向上限时 (EGO 新路径从车当前位置出发),
+#       前向切入需转 2x 夹角的弧 (67.8° 时半径 2.7m/弧长 6.4m), 倒车带转向是
+#       唯一正确的阿克曼机动; 原 1.2m 门把该机动截断 -> v=0 死锁 -> stuck 风暴。
+#       0.6m 以外由 TEB 代价函数自行避让 (含 velodyne 感知到的车身自干扰点,
+#       它们围绕车身形成 ~1m 的固定点环, 前向无碍但会误触发 1.2m 安全门)。
+reverse_rear_safety_dist: 0.6   # 后向保险杠距离 (m), 小于此距离禁止倒车
+reverse_rear_sector_deg: 140    # 后扇区角度 (deg), 以车后方轴线为中心 (360° velodyne 可感知)
+direction_hold_cycles: 4        # 方向切换停顿周期数 (4*50ms=0.2s), 等转向到位 (TEB Issue #92)
+
+# ---- 障碍物 (来自 patchwork++ 分割点云) ----
+use_obstacles: true
+obstacle_radius: 3.0        # 机器人周围多少米内的点作为障碍
+obstacle_z_min: 0.05        # z 下限, 过滤地面残渣 (同 grid_map/obstacle_min_height)
+obstacle_z_max: 2.0         # z 上限
+obstacle_max_points: 100    # 障碍点数上限 (防 TEB 变慢)
+robot_radius: 0.35          # 车辆圆形足迹半径 (m)
+
+# ---- TEB: 轨迹 ----
+teb/dt_ref: 0.3
+teb/min_samples: 3
+teb/max_samples: 500
+teb/force_reinit_new_goal_dist: 1.0
+teb/force_reinit_new_goal_angular: 1.57079632679
+
+# ---- TEB: 机器人 (阿克曼) ----
+teb/max_vel_x: 2.5          # 同 ego-planner manager/max_vel
+teb/max_vel_x_backwards: 0.3 # 倒车上限 (狗项目 0.1; 阿克曼取 0.3 兼顾机动性与安全); >0 否则 checkParameters 警告
+teb/max_vel_theta: 2.0
+teb/acc_lim_x: 0.6          # 同 ego-planner manager/max_acc
+teb/acc_lim_theta: 0.6
+teb/min_turning_radius: 0.4
+teb/wheelbase: 0.335
+
+# ---- TEB: 目标容差 ----
+teb/xy_goal_tolerance: 0.3
+teb/yaw_goal_tolerance: 0.3
+
+# ---- TEB: 障碍物 ----
+teb/min_obstacle_dist: 0.5
+teb/inflation_dist: 0.2
+
+# ---- TEB: 优化 (权重参考开源 AgiBot 集成) ----
+teb/no_inner_iterations: 5
+teb/no_outer_iterations: 4
+teb/weight_max_vel_x: 2.0
+teb/weight_max_vel_theta: 3.0
+teb/weight_acc_lim_x: 1.0
+teb/weight_acc_lim_theta: 2.0
+teb/weight_kinematics_nh: 3000.0
+teb/weight_kinematics_forward_drive: 1.0  # 仅对 diffdrive 生效; carlike (min_turning_radius>0) 下官方明确忽略
+teb/weight_kinematics_turning_radius: 1.0
+teb/weight_optimaltime: 2.0
+teb/weight_shortest_path: 1.0
+teb/weight_viapoint: 100.0
+teb/weight_obstacle: 1.0
+teb/weight_inflation: 0.1
+teb/free_goal_vel: true      # 同开源 plan(start, goal, vel, true)
+teb/control_look_ahead_poses: 3

@@ -1,0 +1,12 @@
+digraph G {
+"base_link" -> "odom"[label="Broadcaster: /me5413_world/goal_publisher_node\nAverage rate: 35.481 Hz\nMost recent transform: 1766895617.228 ( 0.033 sec old)\nBuffer length: 4.960 sec\n"];
+"base_link" -> "velodyne"[label="Broadcaster: /base_to_velodyne\nAverage rate: 10.185 Hz\nMost recent transform: 1766895617.345 ( -0.084 sec old)\nBuffer length: 4.909 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1766895617.261"[ shape=plaintext ] ;
+ }->"base_link";
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1766895617.261"[ shape=plaintext ] ;
+ }->"map";
+}

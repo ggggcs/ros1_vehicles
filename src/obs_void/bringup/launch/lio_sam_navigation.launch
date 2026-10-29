@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- ==================== 参数配置 ==================== -->
+    <arg name="use_sim_time" default="true"/>
+    <param name="use_sim_time" value="$(arg use_sim_time)"/>
+    
+    <!-- ==================== 1. 启动Gazebo仿真环境和小车 ==================== -->
+    <include file="$(find bringup)/launch/gazebo/racecar.launch">
+        <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    </include>
+    
+    <!-- ==================== 2. 启动LIO-SAM建图与定位 ==================== -->
+    <!-- LIO-SAM参数配置 -->
+    <rosparam file="$(find lio_sam)/config/params.yaml" command="load" />
+    
+    <!-- 启动LIO-SAM核心节点 -->
+    <include file="$(find lio_sam)/launch/include/module_loam.launch" />
+    
+    <!-- 不使用LIO-SAM自带的robot_state_publisher，使用racecar的 -->
+    <!-- <include file="$(find lio_sam)/launch/include/module_robot_state_publisher.launch" /> -->
+    
+    <!-- ==================== 3. TF转换桥接 ==================== -->
+    <!-- 
+    LIO-SAM发布: map -> odom -> base_link
+    Racecar需要: base_footprint -> base_link (已由racecar.launch中的robot_state_publisher发布)
+    Navigation需要完整的TF链: map -> odom -> base_footprint -> base_link
+    
+    因为LIO-SAM现在配置为发布到base_link，我们需要确保base_footprint到base_link的连接
+    这个连接已经在racecar的URDF中定义了
+    -->
+    
+    <!-- 静态TF：从base_link到激光雷达frame (如果需要) -->
+    <!-- Racecar URDF已经包含了velodyne的TF，所以不需要额外的静态TF -->
+    
+    <!-- ==================== 4. 启动move_base导航 ==================== -->
+    <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+        <!-- 混合策略：全局用LIO-SAM地图，局部用实时雷达 -->
+        <!-- Global costmap: 使用LIO-SAM的cloud_registered用于全局规划 -->
+        <rosparam file="$(find bringup)/param/global_costmap_common_params.yaml" command="load" ns="global_costmap" /> 
+        <rosparam file="$(find bringup)/param/global_costmap_params_lio.yaml" command="load" /> 
+        
+        <!-- Local costmap: 使用原始velodyne点云用于实时避障 -->
+        <rosparam file="$(find bringup)/param/local_costmap_common_params.yaml" command="load" ns="local_costmap" />
+        <rosparam file="$(find bringup)/param/local_costmap_params_lio.yaml" command="load" />
+        
+        <rosparam file="$(find bringup)/param/teb_local_planner_params.yaml" command="load" />
+        <rosparam file="$(find bringup)/param/move_base_params.yaml" command="load" />
+        
+        <!-- 使用TEB局部规划器（适合阿克曼模型） -->
+        <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS" />
+        
+        <!-- 关键：不使用AMCL，直接使用LIO-SAM提供的定位 -->
+        <!-- LIO-SAM会发布map->odom的TF -->
+    </node>
+    
+    <!-- ==================== 5. 导航接口节点 ==================== -->
+    <!-- 将导航速度命令转换为小车控制命令 -->
+    <node name="nav_sim" pkg="racecar_description" type="nav_sim.py" output="screen">
+    </node>
+    
+    <!-- ==================== 6. 可视化 ==================== -->
+    <!-- 启动RViz -->
+    <node name="rviz" pkg="rviz" type="rviz" 
+          args="-d $(find bringup)/rviz/lio_sam_navigation.rviz" required="false"/>
+    
+    <!-- ==================== 说明 ==================== -->
+    <!--
+    坐标系配置说明：
+    
+    1. Racecar坐标系（来自racecar.launch）：
+       - base_footprint: 机器人投影到地面的坐标系
+       - base_link: 机器人主体坐标系
+       - 各种传感器frame: velodyne, imu等
+       - robot_state_publisher发布这些静态TF
+    
+    2. LIO-SAM坐标系（已修改params.yaml）：
+       - mapFrame: "map" (全局地图坐标系)
+       - odometryFrame: "odom" (里程计坐标系)
+       - baselinkFrame: "base_link" (机器人坐标系，与racecar一致)
+       - lidarFrame: "base_link" (雷达数据转换到base_link)
+       - LIO-SAM发布map->odom->base_link的TF链
+    
+    3. Navigation坐标系：
+       - 需要完整TF链: map -> odom -> base_footprint -> base_link
+       - global_costmap使用global_frame: map, robot_base_frame: base_footprint
+       - local_costmap使用global_frame: odom, robot_base_frame: base_footprint
+       - base_footprint到base_link由racecar的URDF提供（固定TF）
+    
+    4. TF链组成：
+       - LIO-SAM: map -> odom -> base_link
+       - Racecar URDF: base_footprint -> base_link (固定，z方向偏移)
+       - 完整链路: map -> odom -> base_link (base_footprint作为base_link的父节点在URDF中)
+       
+    注意：确保没有TF冲突，不要同时运行两个robot_state_publisher
+    -->
+    
+</launch>

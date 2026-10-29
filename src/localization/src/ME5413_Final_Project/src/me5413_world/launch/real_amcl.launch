@@ -1,0 +1,91 @@
+<launch>
+
+  <!-- 实车AMCL参数 - 优化定位性能 -->
+  <arg name="use_map_topic" default="false"/>
+  <arg name="scan_topic" default="/scan" />  <!-- 实车激光雷达话题 -->
+  <arg name="odom_topic" default="/odom" />  <!-- 实车里程计话题 -->
+  
+  <!-- 初始位置参数（可覆盖） -->
+  <arg name="initial_pose_x" default="0.0"/>
+  <arg name="initial_pose_y" default="0.0"/>
+  <arg name="initial_pose_a" default="0.0"/>
+
+  <node pkg="amcl" type="amcl" name="amcl" output="screen">
+    <!-- 基础配置 -->
+    <param name="use_map_topic" value="$(arg use_map_topic)"/>
+    
+    <!-- ========== 关键参数1: 里程计模型（降低里程计依赖） ========== -->
+    <param name="odom_model_type" value="diff-corrected"/>  <!-- 使用校正模型 -->
+    <param name="odom_alpha1" value="0.2"/>   <!-- 增加噪声容忍，应对实车里程计漂移 -->
+    <param name="odom_alpha2" value="0.2"/>
+    <param name="odom_alpha3" value="0.2"/>
+    <param name="odom_alpha4" value="0.2"/>
+    <param name="odom_alpha5" value="0.1"/>
+    
+    <!-- 发布频率 -->
+    <param name="gui_publish_rate" value="5.0"/>  <!-- 降低显示频率，减少计算负担 -->
+    
+    <!-- ========== 关键参数2: 激光雷达参数（适应3D→2D转换） ========== -->
+    <param name="laser_max_beams" value="120"/>      <!-- 进一步减少光束数 -->
+    <param name="laser_min_range" value="0.3"/>      <!-- 忽略过近点 -->
+    <param name="laser_max_range" value="25.0"/>     <!-- 减小最大范围，提高匹配质量 -->
+    
+    <!-- ========== 关键参数3: 粒子滤波器（增强鲁棒性） ========== -->
+    <param name="min_particles" value="500"/>        <!-- 增加最小粒子数，改善收敛 -->
+    <param name="max_particles" value="5000"/>       <!-- 控制最大粒子数 -->
+    <param name="kld_err" value="0.05"/>             <!-- 放宽KLD误差，允许更多粒子 -->
+    <param name="kld_z" value="0.99"/>
+    
+    <!-- ========== 关键参数4: 激光模型（提高容错） ========== -->
+    <param name="laser_z_hit" value="0.85"/>         <!-- 提高正确测量权重 -->
+    <param name="laser_z_short" value="0.05"/>       <!-- 短距离测量权重 -->
+    <param name="laser_z_max" value="0.05"/>         <!-- 最大距离权重 -->
+    <param name="laser_z_rand" value="0.05"/>        <!-- 减少随机噪声影响 -->
+    <param name="laser_sigma_hit" value="0.2"/>      <!-- 适当增加测量噪声容忍 -->
+    <param name="laser_lambda_short" value="0.1"/>
+    <param name="laser_model_type" value="likelihood_field"/>  <!-- 使用似然场模型 -->
+    <param name="laser_likelihood_max_dist" value="3.0"/>      <!-- 增加匹配距离 -->
+    
+    <!-- ========== 关键参数5: 更新频率（提高响应速度） ========== -->
+    <param name="update_min_d" value="0.1"/>         <!-- 每移动10cm更新 -->
+    <param name="update_min_a" value="0.2"/>         <!-- 每旋转约11度更新 -->
+    
+    <!-- 坐标系设置 -->
+    <param name="odom_frame_id" value="odom"/>
+    <param name="base_frame_id" value="base_link"/>
+    <param name="global_frame_id" value="map"/>
+    
+    <!-- 重采样间隔 -->
+    <param name="resample_interval" value="1"/>      <!-- 每次更新后重采样 -->
+    
+    <!-- ========== 关键参数6: 变换容差（增加鲁棒性） ========== -->
+    <param name="transform_tolerance" value="1.0"/>  <!-- 增加容差，应对TF延迟 -->
+    
+    <!-- ========== 关键参数7: 恢复机制（快速纠正定位错误） ========== -->
+    <param name="recovery_alpha_slow" value="0.0"/>    <!-- 禁用慢速恢复 -->
+    <param name="recovery_alpha_fast" value="0.0"/>    <!-- 禁用快速恢复 -->
+    
+    <!-- ========== 关键参数8: 初始位置协方差（允许大范围搜索） ========== -->
+    <param name="initial_pose_x" value="$(arg initial_pose_x)" />
+    <param name="initial_pose_y" value="$(arg initial_pose_y)" />
+    <param name="initial_pose_a" value="$(arg initial_pose_a)" />
+    <param name="initial_cov_xx" value="0.25"/>      <!-- 增大初始位置不确定性 -->
+    <param name="initial_cov_yy" value="0.25"/>
+    <param name="initial_cov_aa" value="0.068"/>     <!-- 约15度不确定性 -->
+    
+    <!-- 地图相关 -->
+    <param name="receive_map_topic" value="true"/>
+    <param name="first_map_only" value="true"/>
+    
+    <!-- ========== 关键参数9: 选择性重采样（避免粒子退化） ========== -->
+    <param name="selective_resampling" value="false"/>  <!-- 关闭选择性重采样 -->
+    
+    <!-- 话题重映射 -->
+    <remap from="scan" to="$(arg scan_topic)"/>
+    <remap from="odom" to="$(arg odom_topic)"/>
+    
+    <!-- 诊断输出 -->
+    <param name="save_pose_rate" value="0.5"/>
+  </node>
+
+</launch>

@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- ==================== 参数配置 ==================== -->
+    <arg name="use_sim_time" default="true"/>
+    <param name="use_sim_time" value="$(arg use_sim_time)"/>
+    
+    <!-- ==================== 1. 启动Gazebo仿真环境和小车 ==================== -->
+    <!-- <include file="$(find bringup)/launch/gazebo/racecar.launch">
+        <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    </include> -->
+    
+    <!-- ==================== 2. 启动LIO-SAM建图与定位 ==================== -->
+    <rosparam file="$(find lio_sam)/config/params.yaml" command="load" />
+    <include file="$(find lio_sam)/launch/include/module_loam.launch" />
+    
+    <!-- ==================== 3. 启动障碍物检测与拟合 ==================== -->
+    <include file="$(find obs_fitting)/launch/obs_fitting.launch" />
+    
+    <!-- ==================== 4. 圆形路径发布器 (替代全局规划器) ==================== -->
+    <node name="circular_path_publisher" pkg="bringup" type="circular_path_publisher.py" output="screen">
+        <rosparam file="$(find bringup)/param/circular_path_params.yaml" command="load"/>
+    </node>
+    
+    <!-- ==================== 5. 启动向量场局部规划器 (C++版本) ==================== -->
+    <node name="vector_field_planner_cpp" pkg="bringup" type="vector_field_planner_cpp" output="screen">
+        <rosparam file="$(find bringup)/param/vector_field_planner_params.yaml" command="load"/>
+    </node>
+    
+    <!-- ==================== 6. 导航接口节点 ==================== -->
+    <node name="nav_sim" pkg="racecar_description" type="nav_sim.py" output="screen" respawn="false"/>
+    
+    <!-- ==================== 7. 可视化 ==================== -->
+    <node name="rviz" pkg="rviz" type="rviz" 
+          args="-d $(find bringup)/rviz/lio_sam_navigation.rviz" 
+          required="false" respawn="false"/>
+    

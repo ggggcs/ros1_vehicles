@@ -1,0 +1,6 @@
+# Absolute sensor distances in mm. Closing makes the distance smaller.
+# Edit these four values, then restart airport_clamp.launch to apply.
+axis1_release_mm: 260.0
+axis1_grip_mm: 165.0
+axis2_release_mm: 260.0
+axis2_grip_mm: 165.0
